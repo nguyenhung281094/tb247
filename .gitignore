@@ -1,2 +1,11 @@
 .DS_Store
 .claude/settings.local.json
+.env
+.env.*
+wp-config.php
+node_modules/
+vendor/
+*.log
+*.sql
+*.zip
+backups/
