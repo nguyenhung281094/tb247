@@ -1,0 +1,583 @@
+/*
+Theme Name:   TB247 Corporation
+Theme URI:    https://tb247.example
+Author:       TB247
+Description:  Theme cho TB247 Corporation — cổng thông tin ưu đãi/sale đa sàn EC (Amazon/Rakuten/Yahoo), không phải blog. Mobile-first, tải nhanh.
+Version:      1.1.0
+Requires at least: 6.4
+Requires PHP: 7.4
+Text Domain:  tb247-gadget-lab
+*/
+
+/* ==========================================================================
+   Design tokens
+   ========================================================================== */
+:root {
+	--tb-ink: #14162b;
+	--tb-ink-soft: #b9bac9;
+	--tb-paper: #f7f4ee;
+	--tb-card: #ffffff;
+	--tb-accent: #c43d16;
+	--tb-accent-soft: #fbeae3;
+	--tb-gold: #d9a62e;
+	--tb-line: #e7e1d3;
+	--tb-muted: #6c6759;
+
+	--tb-font-jp: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
+	--tb-font-display: "Space Grotesk", var(--tb-font-jp);
+
+	--tb-radius: 14px;
+	--tb-transition: 200ms ease;
+}
+
+/* ==========================================================================
+   Reset
+   ========================================================================== */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--tb-paper);
+	color: var(--tb-ink);
+	font-family: var(--tb-font-jp);
+	font-weight: 400;
+	line-height: 1.8;
+	font-size: 16px;
+	-webkit-font-smoothing: antialiased;
+}
+
+img {
+	max-width: 100%;
+	height: auto;
+	display: block;
+}
+
+a {
+	color: inherit;
+}
+
+button {
+	font-family: inherit;
+}
+
+h1,
+h2,
+h3 {
+	font-weight: 700;
+	line-height: 1.45;
+	margin: 0;
+}
+
+:focus-visible {
+	outline: 2px solid var(--tb-accent);
+	outline-offset: 2px;
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		transition-duration: 0.01ms !important;
+	}
+}
+
+/* ==========================================================================
+   Layout chung
+   ========================================================================== */
+.tb247-container {
+	max-width: 720px;
+	margin: 0 auto;
+	padding: 0 24px;
+}
+
+.tb247-site-header {
+	background: var(--tb-paper);
+	border-bottom: 1px solid var(--tb-line);
+	padding: 18px 0;
+	position: sticky;
+	top: 0;
+	z-index: 10;
+}
+
+.tb247-site-header .tb247-container {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 14px;
+}
+
+/* Header tối giản riêng cho Landing Page: chỉ còn Logo (không tên site,
+   không menu) — giảm padding dọc để bù lại logo phóng to, tránh Header
+   cao lên quá nhiều. align-items:center ở trên đã lo phần căn giữa dọc. */
+.tb247-site-header--deal {
+	padding: 10px 0;
+}
+
+.tb247-logo {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	text-decoration: none;
+	color: var(--tb-ink);
+}
+
+/* Landing Page: logo/tên site chỉ để nhận diện thương hiệu, không phải liên
+   kết — ép cursor mặc định để không gợi ý có thể bấm (dù <div> vốn đã không
+   có cursor:pointer, khai báo rõ để chắc chắn không bị kế thừa từ đâu khác). */
+.tb247-logo--static {
+	cursor: default;
+}
+
+.tb247-logo-mark img {
+	display: block;
+	height: 30px;
+	width: auto;
+	max-width: none;
+	object-fit: contain;
+}
+
+/* Landing Page: Logo to gấp ~2 lần Header thường ở cùng breakpoint (30→60px ở đây). */
+.tb247-logo--static .tb247-logo-mark img {
+	height: 60px;
+}
+
+.tb247-logo-text {
+	font-family: var(--tb-font-display);
+	font-size: 17px;
+	font-weight: 700;
+	letter-spacing: 0.01em;
+}
+
+.tb247-nav ul {
+	list-style: none;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 24px;
+	margin: 0;
+	padding: 0;
+}
+
+.tb247-nav a {
+	text-decoration: none;
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--tb-muted);
+	padding-bottom: 3px;
+	border-bottom: 2px solid transparent;
+	transition: color var(--tb-transition), border-color var(--tb-transition);
+}
+
+.tb247-nav a:hover,
+.tb247-nav .current-menu-item > a {
+	color: var(--tb-ink);
+	border-bottom-color: var(--tb-accent);
+}
+
+.tb247-main {
+	min-height: 60vh;
+}
+
+/* ==========================================================================
+   Hero (trang chủ)
+   ========================================================================== */
+.tb247-hero {
+	position: relative;
+	background: var(--tb-ink);
+	color: var(--tb-card);
+	overflow: hidden;
+	padding: 64px 0 72px;
+}
+
+.tb247-hero-inner {
+	position: relative;
+	z-index: 1;
+	max-width: 560px;
+}
+
+.tb247-eyebrow {
+	display: inline-block;
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	color: var(--tb-card);
+	background: var(--tb-accent);
+	border-radius: 999px;
+	padding: 6px 16px;
+	margin: 0 0 20px;
+}
+
+.tb247-hero-title {
+	font-size: 30px;
+	font-weight: 900;
+	line-height: 1.55;
+	letter-spacing: 0.01em;
+	margin: 0 0 18px;
+}
+
+.tb247-hero-sub {
+	font-size: 15px;
+	line-height: 1.9;
+	color: var(--tb-ink-soft);
+	margin: 0;
+	max-width: 460px;
+}
+
+/* Hoạ tiết "price tag" trang trí — thuần trang trí, aria-hidden trong markup. */
+.tb247-hero-decor {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 0;
+}
+
+.tb247-hero-tag {
+	position: absolute;
+	display: block;
+	clip-path: polygon( 0% 20%, 62% 20%, 100% 50%, 62% 80%, 0% 80% );
+}
+
+.tb247-hero-tag--1 {
+	width: 190px;
+	height: 100px;
+	right: -30px;
+	top: -10px;
+	background: var(--tb-accent);
+	opacity: 0.16;
+	transform: rotate( 8deg );
+}
+
+.tb247-hero-tag--2 {
+	width: 130px;
+	height: 70px;
+	right: 60px;
+	bottom: 10px;
+	background: var(--tb-gold);
+	opacity: 0.18;
+	transform: rotate( -10deg );
+}
+
+.tb247-hero-tag--3 {
+	width: 90px;
+	height: 48px;
+	right: 220px;
+	top: 60%;
+	background: var(--tb-card);
+	opacity: 0.08;
+	transform: rotate( 6deg );
+}
+
+/* Vị trí pixel cố định của hoạ tiết được tính cho hero rộng (desktop) — trên
+   màn hình hẹp chúng đè lên chữ, nên ẩn hẳn thay vì tính lại vị trí phức tạp. */
+@media ( max-width: 599px ) {
+	.tb247-hero-decor {
+		display: none;
+	}
+}
+
+/* ==========================================================================
+   Card dẫn hướng (随時セール情報 / おすすめ商品 / お問い合わせ)
+   ========================================================================== */
+.tb247-links {
+	padding: 56px 0 64px;
+}
+
+.tb247-links-grid {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 20px;
+}
+
+.tb247-link-card {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 14px;
+	background: var(--tb-card);
+	border: 1px solid var(--tb-line);
+	border-radius: var(--tb-radius);
+	padding: 28px;
+	text-decoration: none;
+	color: var(--tb-ink);
+	transition: transform var(--tb-transition), border-color var(--tb-transition), box-shadow var(--tb-transition);
+}
+
+.tb247-link-card:hover {
+	transform: translateY( -4px );
+	border-color: var(--tb-accent);
+	box-shadow: 0 12px 24px -16px rgba( 20, 22, 43, 0.35 );
+}
+
+.tb247-tag-icon {
+	position: relative;
+	width: 40px;
+	height: 40px;
+	flex-shrink: 0;
+}
+
+.tb247-tag-icon::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: var(--tb-accent-soft);
+	clip-path: polygon( 0% 20%, 60% 20%, 100% 50%, 60% 80%, 0% 80% );
+}
+
+.tb247-tag-icon::after {
+	content: "";
+	position: absolute;
+	left: 7px;
+	top: 50%;
+	width: 6px;
+	height: 6px;
+	background: var(--tb-card);
+	border-radius: 50%;
+	transform: translateY( -50% );
+	box-shadow: 0 0 0 1.5px var(--tb-accent);
+}
+
+.tb247-link-card-title {
+	font-size: 17px;
+	font-weight: 700;
+	margin: 0;
+}
+
+.tb247-link-card-desc {
+	font-size: 14px;
+	line-height: 1.8;
+	color: var(--tb-muted);
+	margin: 0;
+	flex-grow: 1;
+}
+
+.tb247-link-card-cta {
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--tb-accent);
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.tb247-link-card-cta::after {
+	content: "→";
+	transition: transform var(--tb-transition);
+}
+
+.tb247-link-card:hover .tb247-link-card-cta::after {
+	transform: translateX( 3px );
+}
+
+/* ==========================================================================
+   Trang tĩnh (お問い合わせ / 随時セール情報 / おすすめ商品 / 404...)
+   ========================================================================== */
+.tb247-page-header {
+	background: var(--tb-ink);
+	color: var(--tb-card);
+	padding: 40px 0 44px;
+}
+
+.tb247-page-header .tb247-eyebrow {
+	background: transparent;
+	border: 1px solid rgba( 255, 255, 255, 0.3 );
+	padding: 5px 14px;
+}
+
+.tb247-page-header h1 {
+	font-size: 24px;
+	font-weight: 900;
+	margin: 0;
+}
+
+.tb247-page {
+	padding: 40px 0 64px;
+}
+
+.tb247-page-card {
+	background: var(--tb-card);
+	border: 1px solid var(--tb-line);
+	border-radius: var(--tb-radius);
+	padding: 32px;
+}
+
+.tb247-page-content {
+	color: var(--tb-ink);
+	font-size: 15px;
+	line-height: 1.9;
+}
+
+.tb247-page-content p {
+	margin: 0 0 16px;
+}
+
+.tb247-page-content p:last-child {
+	margin-bottom: 0;
+}
+
+.tb247-page-content strong {
+	color: var(--tb-ink);
+}
+
+.tb247-page-content h2 {
+	font-size: 17px;
+	margin: 28px 0 10px;
+}
+
+.tb247-page-content h2:first-child {
+	margin-top: 0;
+}
+
+.tb247-page-content a {
+	color: var(--tb-accent);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+.tb247-site-footer {
+	background: var(--tb-ink);
+	color: var(--tb-ink-soft);
+	padding: 40px 0 28px;
+	margin-top: 0;
+}
+
+.tb247-footer-top {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 20px;
+	padding-bottom: 24px;
+	margin-bottom: 20px;
+	border-bottom: 1px solid rgba( 255, 255, 255, 0.12 );
+}
+
+.tb247-footer-logo {
+	font-family: var(--tb-font-display);
+	font-size: 16px;
+	font-weight: 700;
+	color: var(--tb-card);
+	text-decoration: none;
+}
+
+.tb247-footer-nav ul {
+	list-style: none;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 18px;
+	margin: 0;
+	padding: 0;
+}
+
+.tb247-footer-nav a {
+	font-size: 13px;
+	text-decoration: none;
+	color: var(--tb-ink-soft);
+	transition: color var(--tb-transition);
+}
+
+.tb247-footer-nav a:hover {
+	color: var(--tb-card);
+}
+
+.tb247-footer-disclosure {
+	font-size: 12px;
+	line-height: 1.8;
+	color: rgba( 255, 255, 255, 0.55 );
+	max-width: 560px;
+	margin: 0 0 12px;
+}
+
+.tb247-footer-copyright {
+	font-size: 12px;
+	color: rgba( 255, 255, 255, 0.45 );
+	margin: 0;
+}
+
+/* Footer tối giản riêng cho Landing Page — chỉ 2 dòng: câu giới thiệu
+   affiliate chung (không nêu tên từng sàn, để không phải sửa nhiều nơi khi
+   thêm affiliate program mới) + "TB247". Nền sáng + chữ xám thay vì nền tối
+   toàn site — disclosure ngắn không được nổi bật hơn Hero phía trên. */
+.tb247-site-footer--deal {
+	background: var(--tb-paper);
+	padding: 22px 0;
+	text-align: center;
+}
+
+.tb247-site-footer--deal .tb247-footer-disclosure {
+	max-width: 480px;
+	margin: 0 auto 10px;
+	font-size: 10px;
+	font-weight: 400;
+	color: #aaaaaa;
+}
+
+.tb247-site-footer--deal .tb247-footer-copyright {
+	font-size: 10px;
+	font-weight: 400;
+	color: #aaaaaa;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+@media ( min-width: 600px ) {
+	body {
+		font-size: 17px;
+	}
+
+	.tb247-hero-title {
+		font-size: 36px;
+	}
+
+	.tb247-logo-mark img {
+		height: 34px;
+	}
+
+	.tb247-logo--static .tb247-logo-mark img {
+		height: 68px;
+	}
+}
+
+@media ( min-width: 720px ) {
+	.tb247-links-grid {
+		grid-template-columns: repeat( 3, 1fr );
+	}
+
+	.tb247-hero {
+		padding: 88px 0 96px;
+	}
+
+	.tb247-hero-title {
+		font-size: 44px;
+	}
+
+	.tb247-hero-sub {
+		font-size: 16px;
+	}
+}
+
+@media ( min-width: 900px ) {
+	.tb247-logo-mark img {
+		height: 40px;
+	}
+
+	.tb247-logo-text {
+		font-size: 19px;
+	}
+
+	.tb247-logo--static .tb247-logo-mark img {
+		height: 80px;
+	}
+}

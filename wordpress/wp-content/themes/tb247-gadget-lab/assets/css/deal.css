@@ -1,0 +1,222 @@
+/* Landing Page /d/{code} — Card lớn giữa màn hình, bo góc, đổ bóng nhẹ,
+   phong cách tối giản kiểu Nhật. Dùng chung design token với toàn site
+   (style.css :root) để đồng bộ giao diện. */
+
+.tb247-deal {
+	padding: 40px 0 64px;
+}
+
+.tb247-deal-container {
+	max-width: 560px;
+	margin: 0 auto;
+	padding: 0 20px;
+}
+
+.tb247-deal-card {
+	background: var(--tb-card);
+	border-radius: 24px;
+	box-shadow: 0 24px 48px -28px rgba( 20, 22, 43, 0.28 ), 0 2px 10px rgba( 20, 22, 43, 0.05 );
+	overflow: hidden;
+}
+
+.tb247-deal-media {
+	position: relative;
+	background: var(--tb-paper);
+	/* Giảm ~10% chiều cao Hero Area qua khoảng đệm trên/dưới — ảnh sản phẩm
+	   giữ nguyên kích thước/tỉ lệ (max-height không đổi bên dưới). */
+	padding: 28px 32px 79px;
+	overflow: hidden;
+}
+
+.tb247-deal-media img {
+	margin: 0 auto;
+	max-height: 300px;
+	object-fit: contain;
+	position: relative;
+	z-index: 1;
+}
+
+/* Gradient đậm hơn ở đáy khu vực ảnh — chỉ phủ dải dưới cùng để giá trắng
+   và nút Amazon nổi bật, không làm tối toàn bộ ảnh (phần trên vẫn trong suốt). */
+.tb247-deal-media-overlay {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 150px;
+	background: linear-gradient( to bottom, rgba( 10, 11, 26, 0 ) 0%, rgba( 10, 11, 26, 0.45 ) 45%, rgba( 10, 11, 26, 0.82 ) 100% );
+	pointer-events: none;
+	z-index: 1;
+}
+
+.tb247-deal-media-footer {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 2;
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 0 18px 14px;
+}
+
+/* Hết hàng (không có price-block): giữ nút Amazon đúng vị trí bên phải như
+   khi có giá — nếu không, justify-content:space-between với 1 phần tử duy
+   nhất sẽ đẩy nút lệch sang trái. */
+.tb247-deal-media-footer--no-price {
+	justify-content: flex-end;
+}
+
+.tb247-deal-price-block {
+	min-width: 0;
+	text-align: left;
+}
+
+.tb247-deal-price {
+	font-family: var(--tb-font-display);
+	font-size: 24px;
+	font-weight: 800;
+	/* Trắng đậm kiểu Amazon — nổi bật trên nền gradient tối, không dùng đỏ. */
+	color: #ffffff;
+	margin: 0;
+	line-height: 1.15;
+	text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.45 ), 0 2px 10px rgba( 0, 0, 0, 0.35 );
+}
+
+.tb247-buy-button-mini {
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	/* Tông cam Amazon thay cho màu đỏ accent của site. */
+	background: #ff9900;
+	color: #ffffff;
+	font-weight: 700;
+	font-size: 13px;
+	text-align: center;
+	text-decoration: none;
+	padding: 9px 18px;
+	border-radius: 999px;
+	white-space: nowrap;
+	box-shadow: 0 4px 12px rgba( 20, 22, 43, 0.3 );
+	/* Hạ nhẹ xuống để cân đối với phần giá bên cạnh. */
+	transform: translateY( 4px );
+	transition: filter var(--tb-transition), transform var(--tb-transition);
+}
+
+.tb247-buy-button-mini:hover {
+	filter: brightness( 0.92 );
+	transform: translateY( 3px );
+}
+
+.tb247-deal-body {
+	padding: 20px 26px 34px;
+	text-align: center;
+}
+
+.tb247-deal-title {
+	font-size: 13px;
+	line-height: 1.35;
+	font-weight: 700;
+	margin: 0 0 4px;
+	color: var(--tb-ink);
+}
+
+/* Màu xanh giống link tiêu đề Discord Embed — để nhận biết ngay đây là link,
+   quen mắt như đang bấm vào 1 embed sản phẩm. Đậm hơn bản đầu để dễ đọc hơn
+   trên nền trắng (đạt tương phản AA cho chữ đậm cỡ này). */
+.tb247-deal-title a {
+	color: #0087bd;
+	text-decoration: none;
+	transition: color var(--tb-transition);
+}
+
+.tb247-deal-title a:hover,
+.tb247-deal-title a:focus-visible {
+	color: #006690;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.tb247-deal-jan {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin: 0 0 18px;
+	font-size: 13px;
+	color: var(--tb-muted);
+}
+
+.tb247-deal-jan-label strong {
+	color: var(--tb-ink);
+	font-weight: 700;
+}
+
+.tb247-copy-jan-btn {
+	border: 1px solid var(--tb-line);
+	background: var(--tb-paper);
+	color: var(--tb-ink);
+	border-radius: 999px;
+	padding: 6px 16px;
+	font-size: 12px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background-color var(--tb-transition), border-color var(--tb-transition);
+}
+
+.tb247-copy-jan-btn:hover {
+	background: var(--tb-accent-soft);
+	border-color: var(--tb-accent);
+}
+
+.tb247-copy-jan-btn:active {
+	background: var(--tb-accent-soft);
+}
+
+.tb247-deal-note {
+	font-size: 12px;
+	line-height: 1.7;
+	color: var(--tb-muted);
+	margin: 0;
+}
+
+/* Màn hình rất hẹp: thu nhỏ thêm giá + nút Amazon để không bao giờ chồng lên
+   nhau hoặc tràn ra ngoài ảnh (yêu cầu: ưu tiên giữ giá trái/nút phải). */
+@media ( max-width: 360px ) {
+	.tb247-deal-media {
+		padding: 22px 24px 70px;
+	}
+
+	.tb247-deal-media-footer {
+		padding: 0 14px 12px;
+		gap: 8px;
+	}
+
+	.tb247-deal-price {
+		font-size: 20px;
+	}
+
+	.tb247-buy-button-mini {
+		font-size: 12px;
+		padding: 8px 14px;
+	}
+}
+
+@media ( min-width: 600px ) {
+	.tb247-deal-title {
+		font-size: 14px;
+	}
+
+	.tb247-deal-price {
+		font-size: 28px;
+	}
+
+	.tb247-buy-button-mini {
+		font-size: 14px;
+		padding: 10px 20px;
+	}
+}
