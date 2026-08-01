@@ -21,6 +21,7 @@ class TB247_DM_Plugin {
 
 		add_action( 'rest_api_init', array( 'TB247_DM_Rest_Controller', 'register_routes' ) );
 		add_action( 'rest_api_init', array( 'TB247_DM_Products_Rest_Controller', 'register_routes' ) );
+		add_action( 'rest_api_init', array( 'TB247_DM_Deals_Lookup_Rest_Controller', 'register_routes' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_permalink_notice' ) );
 	}
 

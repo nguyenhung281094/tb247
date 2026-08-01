@@ -30,6 +30,7 @@ require_once TB247_DM_PLUGIN_DIR . 'includes/rest/class-auth.php';
 require_once TB247_DM_PLUGIN_DIR . 'includes/rest/class-rest-controller.php';
 require_once TB247_DM_PLUGIN_DIR . 'includes/rest/class-products-validator.php';
 require_once TB247_DM_PLUGIN_DIR . 'includes/rest/class-products-rest-controller.php';
+require_once TB247_DM_PLUGIN_DIR . 'includes/rest/class-deals-lookup-rest-controller.php';
 require_once TB247_DM_PLUGIN_DIR . 'includes/seo/class-deal-seo.php';
 require_once TB247_DM_PLUGIN_DIR . 'includes/class-plugin.php';
 

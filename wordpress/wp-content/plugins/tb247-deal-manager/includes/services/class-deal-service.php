@@ -37,6 +37,121 @@ class TB247_DM_Deal_Service {
 	}
 
 	/**
+	 * Tìm deal theo JAN — dùng cho slash command và tra cứu Rakuten/Yahoo
+	 * (2 sàn chưa có ASIN, JAN là định danh chính).
+	 *
+	 * @param string $jan Mã JAN 8/13 số.
+	 * @return WP_Post|null
+	 */
+	public static function find_by_jan( $jan ) {
+		$jan = trim( (string) $jan );
+
+		if ( '' === $jan ) {
+			return null;
+		}
+
+		$query = new WP_Query(
+			array(
+				'post_type'      => TB247_DM_Deal_Post_Type::POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'no_found_rows'  => true,
+				'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+					array(
+						'key'   => '_tb247_jan',
+						'value' => $jan,
+					),
+				),
+			)
+		);
+
+		return $query->have_posts() ? $query->posts[0] : null;
+	}
+
+	/**
+	 * Tìm deal theo source URL đã chuẩn hoá (bỏ query string/hash) — dùng khi
+	 * Rakuten/Yahoo chưa có JAN nhưng deal đã từng lưu product_url gốc.
+	 *
+	 * @param string $source_url URL sản phẩm gốc (chưa chuẩn hoá).
+	 * @return WP_Post|null
+	 */
+	public static function find_by_source_url( $source_url ) {
+		$normalized = self::normalize_url( $source_url );
+
+		if ( '' === $normalized ) {
+			return null;
+		}
+
+		$query = new WP_Query(
+			array(
+				'post_type'      => TB247_DM_Deal_Post_Type::POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => 50,
+				'no_found_rows'  => true,
+				'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+					array(
+						'key'     => '_tb247_product_url',
+						'value'   => '',
+						'compare' => '!=',
+					),
+				),
+			)
+		);
+
+		foreach ( $query->posts as $candidate ) {
+			$candidate_url = get_post_meta( $candidate->ID, '_tb247_product_url', true );
+
+			if ( self::normalize_url( $candidate_url ) === $normalized ) {
+				return $candidate;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Chuẩn hoá URL để so khớp: bỏ query string, hash, dấu "/" cuối, hạ thường host.
+	 *
+	 * @param string $url URL gốc.
+	 * @return string
+	 */
+	private static function normalize_url( $url ) {
+		$url = trim( (string) $url );
+
+		if ( '' === $url ) {
+			return '';
+		}
+
+		$parts = wp_parse_url( $url );
+
+		if ( empty( $parts['host'] ) ) {
+			return '';
+		}
+
+		$path = isset( $parts['path'] ) ? untrailingslashit( $parts['path'] ) : '';
+
+		return strtolower( $parts['host'] ) . $path;
+	}
+
+	/**
+	 * Cập nhật cờ is_recommended/is_sale cho 1 deal đã tồn tại. Chỉ ghi field
+	 * nào được truyền vào (không null) — field còn lại giữ nguyên giá trị cũ.
+	 *
+	 * @param int        $post_id       ID deal.
+	 * @param bool|null  $is_recommended Giá trị mới, hoặc null để giữ nguyên.
+	 * @param bool|null  $is_sale        Giá trị mới, hoặc null để giữ nguyên.
+	 */
+	public static function update_flags( $post_id, $is_recommended, $is_sale ) {
+		if ( null !== $is_recommended ) {
+			update_post_meta( $post_id, '_tb247_is_recommended', $is_recommended ? '1' : '0' );
+		}
+
+		if ( null !== $is_sale ) {
+			update_post_meta( $post_id, '_tb247_is_sale', $is_sale ? '1' : '0' );
+		}
+	}
+
+	/**
 	 * Tìm deal theo đúng marketplace + code (dùng khi upsert để dedupe).
 	 *
 	 * @param string $marketplace Slug sàn.
@@ -131,6 +246,17 @@ class TB247_DM_Deal_Service {
 		// hành vi hiển thị giá cũ khi meta rỗng.
 		if ( array_key_exists( 'in_stock', $payload ) && null !== $payload['in_stock'] ) {
 			update_post_meta( $post_id, '_tb247_in_stock', $payload['in_stock'] ? '1' : '0' );
+		}
+
+		// is_recommended/is_sale: CHỈ set mặc định '0' khi deal chưa từng có field
+		// này (deal mới tạo). Nếu đã có (deal cũ sync lại), không đụng vào — giữ
+		// nguyên giá trị admin/slash command đã đặt trước đó.
+		if ( ! metadata_exists( 'post', $post_id, '_tb247_is_recommended' ) ) {
+			update_post_meta( $post_id, '_tb247_is_recommended', '0' );
+		}
+
+		if ( ! metadata_exists( 'post', $post_id, '_tb247_is_sale' ) ) {
+			update_post_meta( $post_id, '_tb247_is_sale', '0' );
 		}
 
 		update_post_meta( $post_id, '_tb247_last_updated', current_time( 'mysql' ) );

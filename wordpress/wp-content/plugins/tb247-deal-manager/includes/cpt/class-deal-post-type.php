@@ -19,15 +19,18 @@ class TB247_DM_Deal_Post_Type {
 	 */
 	public static function get_meta_schema() {
 		return array(
-			'_tb247_marketplace'   => 'sanitize_key',
-			'_tb247_asin'          => 'sanitize_text_field',
-			'_tb247_jan'           => 'sanitize_text_field',
-			'_tb247_sale_price'    => 'absint',
-			'_tb247_image'         => 'esc_url_raw',
-			'_tb247_affiliate_url' => 'esc_url_raw',
-			'_tb247_product_url'   => 'esc_url_raw',
-			'_tb247_brand'         => 'sanitize_text_field',
-			'_tb247_last_updated'  => 'sanitize_text_field',
+			'_tb247_marketplace'    => 'sanitize_key',
+			'_tb247_asin'           => 'sanitize_text_field',
+			'_tb247_jan'            => 'sanitize_text_field',
+			'_tb247_sale_price'     => 'absint',
+			'_tb247_image'          => 'esc_url_raw',
+			'_tb247_affiliate_url'  => 'esc_url_raw',
+			'_tb247_product_url'    => 'esc_url_raw',
+			'_tb247_brand'          => 'sanitize_text_field',
+			'_tb247_in_stock'       => 'sanitize_text_field',
+			'_tb247_is_recommended' => 'sanitize_text_field',
+			'_tb247_is_sale'        => 'sanitize_text_field',
+			'_tb247_last_updated'   => 'sanitize_text_field',
 		);
 	}
 
