@@ -489,27 +489,34 @@ h3 {
 	box-shadow: 0 12px 24px -16px rgba( 20, 22, 43, 0.35 );
 }
 
+/* Không dùng flex để canh giữa <img>: kích thước flex-item của 1 replaced
+   element không có width/height cố định (chỉ max-width/max-height) được tính
+   theo tỉ lệ gốc ảnh, dễ lệch với ảnh dọc (vd bìa game). Thay vào đó ép <img>
+   position:absolute lấp đúng vùng nội dung (trừ padding) rồi để object-fit +
+   object-position lo việc canh giữa — 2 thuộc tính này canh giữa nội dung ảnh
+   một cách xác định, nhất quán trên mọi trình duyệt, không phụ thuộc flex. */
 .tb247-deal-grid-media {
 	position: relative;
 	background: var(--tb-paper);
 	aspect-ratio: 1 / 1;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 16px;
+	overflow: hidden;
 }
 
 .tb247-deal-grid-media img {
-	max-width: 100%;
-	max-height: 100%;
+	position: absolute;
+	top: 16px;
+	left: 16px;
+	width: calc( 100% - 32px );
+	height: calc( 100% - 32px );
 	object-fit: contain;
+	object-position: center;
 }
 
 .tb247-deal-grid-badge {
 	position: absolute;
 	top: 10px;
 	left: 10px;
-	z-index: 1;
+	z-index: 2;
 	background: var(--tb-ink);
 	color: var(--tb-card);
 	font-size: 10px;
