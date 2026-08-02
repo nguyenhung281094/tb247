@@ -91,16 +91,30 @@ function tb247_marketplace_label( $marketplace ) {
 /**
  * Thuộc tính chuẩn cho mọi link CTA dẫn ra sàn thương mại điện tử ngoài site
  * (Amazon hiện tại; Rakuten/Yahoo sau này) — dùng chung để không hardcode
- * rel/target rải rác nhiều nơi. noreferrer không ảnh hưởng attribution vì
- * Amazon Associates track qua tham số ?tag= gắn thẳng trong URL, không dựa
- * vào HTTP Referer header.
+ * rel/target rải rác nhiều nơi.
  *
+ * Amazon (mặc định, kể cả khi gọi không truyền $marketplace hoặc meta rỗng —
+ * giữ đúng hành vi production hiện tại) giữ "nofollow" — không đổi để không
+ * ảnh hưởng CTA Amazon đang chạy. noreferrer không ảnh hưởng attribution vì
+ * Amazon Associates track qua tham số ?tag= gắn thẳng trong URL, không dựa
+ * vào HTTP Referer header. Sàn khác dùng rel mặc định không có nofollow.
+ *
+ * @param string $marketplace Slug sàn (vd: "amazon", "rakuten"). Rỗng = amazon.
  * @return array{target: string, rel: string}
  */
-function tb247_get_marketplace_link_attributes() {
+function tb247_get_marketplace_link_attributes( $marketplace = 'amazon' ) {
+	$marketplace = sanitize_key( (string) $marketplace );
+
+	if ( '' === $marketplace || 'amazon' === $marketplace ) {
+		return array(
+			'target' => '_blank',
+			'rel'    => 'sponsored noopener noreferrer nofollow',
+		);
+	}
+
 	return array(
 		'target' => '_blank',
-		'rel'    => 'sponsored noopener noreferrer nofollow',
+		'rel'    => 'sponsored noopener noreferrer',
 	);
 }
 

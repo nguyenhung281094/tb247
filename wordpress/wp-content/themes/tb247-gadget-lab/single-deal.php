@@ -46,9 +46,9 @@ while ( have_posts() ) :
 	$show_price    = ( '0' !== $in_stock_meta ) && ( $price > 0 );
 
 	// Tên sản phẩm và nút mua dùng chung 1 URL affiliate, cùng thuộc tính
-	// target/rel chuẩn hoá qua helper dùng chung (Amazon hiện tại, Rakuten/
-	// Yahoo sau này không cần sửa lại ở đây).
-	$marketplace_link_attrs = tb247_get_marketplace_link_attributes();
+	// target/rel chuẩn hoá qua helper dùng chung, tham số hoá theo đúng sàn
+	// của deal (Amazon hiện tại, Rakuten/Yahoo sau này không cần sửa lại ở đây).
+	$marketplace_link_attrs = tb247_get_marketplace_link_attributes( $marketplace );
 	?>
 	<article class="tb247-deal">
 		<div class="tb247-deal-container">
