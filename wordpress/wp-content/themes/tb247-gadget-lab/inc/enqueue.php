@@ -20,7 +20,12 @@ function tb247_enqueue_assets() {
 
 	// Font dùng chung toàn site, kể cả Landing Page (đồng bộ giao diện).
 	wp_enqueue_style( 'tb247-fonts', tb247_get_fonts_url(), array(), null );
-	wp_enqueue_style( 'tb247-style', get_stylesheet_uri(), array( 'tb247-fonts' ), $theme->get( 'Version' ) );
+
+	// filemtime() thay vì Version cố định trong header style.css: version
+	// query string phải đổi mỗi lần sửa CSS, nếu không CDN edge (cache riêng,
+	// tách biệt LiteSpeed page cache, max-age 30 ngày) tiếp tục phục vụ bản cũ
+	// dưới cùng URL dù đã purge LiteSpeed.
+	wp_enqueue_style( 'tb247-style', get_stylesheet_uri(), array( 'tb247-fonts' ), filemtime( get_stylesheet_directory() . '/style.css' ) );
 
 	if ( tb247_is_deal_page() ) {
 		wp_enqueue_style( 'tb247-deal', TB247_THEME_URI . '/assets/css/deal.css', array( 'tb247-style' ), $theme->get( 'Version' ) );
