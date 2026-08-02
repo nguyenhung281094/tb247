@@ -24,7 +24,8 @@ while ( have_posts() ) :
 		<div class="tb247-container">
 			<div class="tb247-page-card">
 				<div class="tb247-page-content">
-					<?php the_content(); ?>
+					<p><?php esc_html_e( '複数のECサイトから、おすすめ商品やお得な情報を厳選してご紹介しています。', 'tb247-gadget-lab' ); ?></p>
+					<p><?php esc_html_e( '価格・在庫は変動する場合があります。最新情報は販売ページをご確認ください。', 'tb247-gadget-lab' ); ?></p>
 				</div>
 			</div>
 		</div>

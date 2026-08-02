@@ -458,10 +458,17 @@ h3 {
 	padding: 24px 0;
 }
 
+/* Grid rộng hơn container đọc-nội-dung mặc định (720px) để đủ chỗ cho 4 cột
+   ở desktop — chỉ áp dụng bên trong section này, không đụng container dùng
+   chung ở Header/Footer/Hero/trang tĩnh. */
+.tb247-deal-grid-section .tb247-container {
+	max-width: 1240px;
+}
+
 .tb247-deal-grid {
 	display: grid;
 	grid-template-columns: 1fr;
-	gap: 16px;
+	gap: 20px;
 }
 
 .tb247-deal-grid-card {
@@ -483,6 +490,7 @@ h3 {
 }
 
 .tb247-deal-grid-media {
+	position: relative;
 	background: var(--tb-paper);
 	aspect-ratio: 1 / 1;
 	display: flex;
@@ -497,16 +505,23 @@ h3 {
 	object-fit: contain;
 }
 
-.tb247-deal-grid-body {
-	padding: 14px 16px 18px;
+.tb247-deal-grid-badge {
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	z-index: 1;
+	background: var(--tb-ink);
+	color: var(--tb-card);
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
+	padding: 4px 9px;
+	border-radius: 999px;
 }
 
-.tb247-deal-grid-marketplace {
-	font-size: 11px;
-	font-weight: 700;
-	letter-spacing: 0.02em;
-	color: var(--tb-muted);
-	margin: 0 0 4px;
+.tb247-deal-grid-body {
+	padding: 14px 16px 18px;
 }
 
 .tb247-deal-grid-title {
@@ -534,15 +549,21 @@ h3 {
 	margin: 0;
 }
 
-@media ( min-width: 600px ) {
+@media ( min-width: 480px ) {
 	.tb247-deal-grid {
 		grid-template-columns: repeat( 2, 1fr );
 	}
 }
 
-@media ( min-width: 900px ) {
+@media ( min-width: 700px ) {
 	.tb247-deal-grid {
 		grid-template-columns: repeat( 3, 1fr );
+	}
+}
+
+@media ( min-width: 1000px ) {
+	.tb247-deal-grid {
+		grid-template-columns: repeat( 4, 1fr );
 	}
 }
 

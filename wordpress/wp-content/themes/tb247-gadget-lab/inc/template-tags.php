@@ -107,14 +107,14 @@ function tb247_the_deal_card( $deal ) {
 	$landing_url   = home_url( '/d/' . rawurlencode( $code ) . '/' );
 	?>
 	<a class="tb247-deal-grid-card" href="<?php echo esc_url( $landing_url ); ?>">
-		<?php if ( $image ) : ?>
-			<div class="tb247-deal-grid-media">
+		<div class="tb247-deal-grid-media">
+			<span class="tb247-deal-grid-badge"><?php echo esc_html( tb247_marketplace_label( $marketplace ) ); ?></span>
+			<?php if ( $image ) : ?>
 				<img src="<?php echo esc_url( $image ); ?>" alt="<?php echo esc_attr( get_the_title( $deal_id ) ); ?>" loading="lazy" />
-			</div>
-		<?php endif; ?>
+			<?php endif; ?>
+		</div>
 
 		<div class="tb247-deal-grid-body">
-			<p class="tb247-deal-grid-marketplace"><?php echo esc_html( tb247_marketplace_label( $marketplace ) ); ?></p>
 			<p class="tb247-deal-grid-title"><?php echo esc_html( get_the_title( $deal_id ) ); ?></p>
 
 			<?php if ( $show_price ) : ?>
