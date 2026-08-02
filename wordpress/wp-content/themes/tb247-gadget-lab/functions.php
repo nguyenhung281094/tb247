@@ -14,3 +14,4 @@ require_once TB247_THEME_DIR . '/inc/setup.php';
 require_once TB247_THEME_DIR . '/inc/enqueue.php';
 require_once TB247_THEME_DIR . '/inc/template-tags.php';
 require_once TB247_THEME_DIR . '/inc/cache.php';
+require_once TB247_THEME_DIR . '/inc/security.php';

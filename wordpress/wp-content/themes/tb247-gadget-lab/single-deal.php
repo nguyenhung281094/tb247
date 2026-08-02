@@ -20,7 +20,24 @@ while ( have_posts() ) :
 	$jan           = get_post_meta( $deal_id, '_tb247_jan', true );
 	$price         = (int) get_post_meta( $deal_id, '_tb247_sale_price', true );
 	$image         = get_post_meta( $deal_id, '_tb247_image', true );
+	$marketplace   = get_post_meta( $deal_id, '_tb247_marketplace', true );
 	$affiliate_url = get_post_meta( $deal_id, '_tb247_affiliate_url', true );
+
+	// Xác thực domain đích trước khi render — chỉ cho phép marketplace đã
+	// phê duyệt (chặn open redirect/phishing nếu dữ liệu bot từng bị lỗi/giả
+	// mạo). Nếu helper của plugin không sẵn sàng vì lý do gì đó, ẩn hẳn CTA
+	// thay vì fallback sang URL chưa xác thực.
+	if ( $affiliate_url ) {
+		if ( function_exists( 'tb247_validate_marketplace_url' ) ) {
+			$affiliate_url = tb247_validate_marketplace_url( $affiliate_url, $marketplace );
+
+			if ( $affiliate_url && function_exists( 'tb247_strip_tracking_params' ) ) {
+				$affiliate_url = tb247_strip_tracking_params( $affiliate_url );
+			}
+		} else {
+			$affiliate_url = '';
+		}
+	}
 
 	// '_tb247_in_stock' lưu '1' (còn hàng) / '0' (hết hàng) / '' (chưa có dữ
 	// liệu — deal cũ trước khi có tính năng này, hoặc bot chưa xác định được).
@@ -28,9 +45,10 @@ while ( have_posts() ) :
 	$in_stock_meta = get_post_meta( $deal_id, '_tb247_in_stock', true );
 	$show_price    = ( '0' !== $in_stock_meta ) && ( $price > 0 );
 
-	// Tên sản phẩm và nút mua dùng chung 1 URL affiliate, cùng thuộc tính rel
-	// (nofollow + sponsored bắt buộc theo quy định Amazon Associates).
-	$affiliate_rel = 'noopener noreferrer nofollow sponsored';
+	// Tên sản phẩm và nút mua dùng chung 1 URL affiliate, cùng thuộc tính
+	// target/rel chuẩn hoá qua helper dùng chung (Amazon hiện tại, Rakuten/
+	// Yahoo sau này không cần sửa lại ở đây).
+	$marketplace_link_attrs = tb247_get_marketplace_link_attributes();
 	?>
 	<article class="tb247-deal">
 		<div class="tb247-deal-container">
@@ -54,8 +72,8 @@ while ( have_posts() ) :
 									<a
 										class="tb247-buy-button-mini"
 										href="<?php echo esc_url( $affiliate_url ); ?>"
-										target="_blank"
-										rel="<?php echo esc_attr( $affiliate_rel ); ?>"
+										target="<?php echo esc_attr( $marketplace_link_attrs['target'] ); ?>"
+										rel="<?php echo esc_attr( $marketplace_link_attrs['rel'] ); ?>"
 									><?php esc_html_e( 'Amazon', 'tb247-gadget-lab' ); ?></a>
 								<?php endif; ?>
 							</div>
@@ -66,7 +84,7 @@ while ( have_posts() ) :
 				<div class="tb247-deal-body">
 					<h1 class="tb247-deal-title">
 						<?php if ( $affiliate_url ) : ?>
-							<a href="<?php echo esc_url( $affiliate_url ); ?>" target="_blank" rel="<?php echo esc_attr( $affiliate_rel ); ?>">
+							<a href="<?php echo esc_url( $affiliate_url ); ?>" target="<?php echo esc_attr( $marketplace_link_attrs['target'] ); ?>" rel="<?php echo esc_attr( $marketplace_link_attrs['rel'] ); ?>">
 								<?php the_title(); ?>
 							</a>
 						<?php else : ?>

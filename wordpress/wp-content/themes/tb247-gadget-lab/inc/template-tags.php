@@ -89,6 +89,22 @@ function tb247_marketplace_label( $marketplace ) {
 }
 
 /**
+ * Thuộc tính chuẩn cho mọi link CTA dẫn ra sàn thương mại điện tử ngoài site
+ * (Amazon hiện tại; Rakuten/Yahoo sau này) — dùng chung để không hardcode
+ * rel/target rải rác nhiều nơi. noreferrer không ảnh hưởng attribution vì
+ * Amazon Associates track qua tham số ?tag= gắn thẳng trong URL, không dựa
+ * vào HTTP Referer header.
+ *
+ * @return array{target: string, rel: string}
+ */
+function tb247_get_marketplace_link_attributes() {
+	return array(
+		'target' => '_blank',
+		'rel'    => 'sponsored noopener noreferrer nofollow',
+	);
+}
+
+/**
  * In 1 card sản phẩm cho trang danh sách (おすすめ商品/随時セール情報). Dùng chung
  * quy tắc ẩn giá khi hết hàng như single-deal.php: chỉ '0' (_tb247_in_stock)
  * mới ép ẩn giá, mọi giá trị khác giữ hành vi cũ (theo giá > 0).
