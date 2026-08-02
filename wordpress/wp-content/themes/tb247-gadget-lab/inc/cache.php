@@ -12,17 +12,16 @@
 
 defined( 'ABSPATH' ) || exit;
 
-add_action( 'tb247_deal_flags_changed', 'tb247_purge_deal_listing_cache' );
+// $accepted_args = 0: do_action() bên plugin gọi kèm 3 tham số nhưng hàm này
+// không cần dùng tham số nào (luôn purge cả 2 trang cho đơn giản, vì mỗi lần
+// đổi cờ đều rẻ) — khai báo accepted_args=0 để không phụ thuộc đúng số lượng/
+// thứ tự tham số phía gọi, tránh lỗi ArgumentCountError nếu phía plugin đổi sau này.
+add_action( 'tb247_deal_flags_changed', 'tb247_purge_deal_listing_cache', 10, 0 );
 
 /**
- * @param int       $post_id        ID deal vừa đổi cờ (không cần dùng ở đây).
- * @param bool|null $is_recommended Giá trị mới (không cần dùng — luôn purge cả 2
- *                                  trang cho đơn giản, vì mỗi lần đổi cờ đều rẻ).
- * @param bool|null $is_sale        Giá trị mới.
+ * Purge cache cho cả 2 trang listing — không nhận tham số nào.
  */
-function tb247_purge_deal_listing_cache( $post_id, $is_recommended, $is_sale ) {
-	unset( $post_id, $is_recommended, $is_sale );
-
+function tb247_purge_deal_listing_cache() {
 	$recommended_page = get_page_by_path( 'recommended' );
 	$sale_page        = get_page_by_path( 'sale-info' );
 
