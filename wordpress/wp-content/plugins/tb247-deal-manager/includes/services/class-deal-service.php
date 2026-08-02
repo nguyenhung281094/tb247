@@ -142,12 +142,23 @@ class TB247_DM_Deal_Service {
 	 * @param bool|null  $is_sale        Giá trị mới, hoặc null để giữ nguyên.
 	 */
 	public static function update_flags( $post_id, $is_recommended, $is_sale ) {
+		$changed = false;
+
 		if ( null !== $is_recommended ) {
 			update_post_meta( $post_id, '_tb247_is_recommended', $is_recommended ? '1' : '0' );
+			$changed = true;
 		}
 
 		if ( null !== $is_sale ) {
 			update_post_meta( $post_id, '_tb247_is_sale', $is_sale ? '1' : '0' );
+			$changed = true;
+		}
+
+		if ( $changed ) {
+			// Hook chung, không biết gì về LiteSpeed Cache hay slug trang cụ thể —
+			// theme (nơi định nghĩa page-recommended.php/page-sale-info.php) tự
+			// lắng nghe hook này để purge đúng URL bị ảnh hưởng.
+			do_action( 'tb247_deal_flags_changed', $post_id, $is_recommended, $is_sale );
 		}
 	}
 
