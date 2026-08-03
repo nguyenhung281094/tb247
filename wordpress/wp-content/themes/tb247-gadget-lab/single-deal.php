@@ -49,6 +49,14 @@ while ( have_posts() ) :
 	// target/rel chuẩn hoá qua helper dùng chung, tham số hoá theo đúng sàn
 	// của deal (Amazon hiện tại, Rakuten/Yahoo sau này không cần sửa lại ở đây).
 	$marketplace_link_attrs = tb247_get_marketplace_link_attributes( $marketplace );
+
+	// Text nút mua theo đúng sàn — 'amazon' (kể cả marketplace rỗng, giữ đúng
+	// hành vi hiện tại) giữ nguyên chữ "Amazon" y hệt trước đây.
+	$buy_button_labels = array(
+		'amazon'  => 'Amazon',
+		'rakuten' => __( '楽天で購入', 'tb247-gadget-lab' ),
+	);
+	$buy_button_label = isset( $buy_button_labels[ $marketplace ] ) ? $buy_button_labels[ $marketplace ] : 'Amazon';
 	?>
 	<article class="tb247-deal">
 		<div class="tb247-deal-container">
@@ -74,7 +82,7 @@ while ( have_posts() ) :
 										href="<?php echo esc_url( $affiliate_url ); ?>"
 										target="<?php echo esc_attr( $marketplace_link_attrs['target'] ); ?>"
 										rel="<?php echo esc_attr( $marketplace_link_attrs['rel'] ); ?>"
-									><?php esc_html_e( 'Amazon', 'tb247-gadget-lab' ); ?></a>
+									><?php echo esc_html( $buy_button_label ); ?></a>
 								<?php endif; ?>
 							</div>
 						<?php endif; ?>

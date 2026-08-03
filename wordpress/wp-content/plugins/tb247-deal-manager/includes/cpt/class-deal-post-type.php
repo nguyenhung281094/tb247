@@ -21,6 +21,8 @@ class TB247_DM_Deal_Post_Type {
 		return array(
 			'_tb247_marketplace'    => 'sanitize_key',
 			'_tb247_asin'           => 'sanitize_text_field',
+			'_tb247_shop_code'      => 'sanitize_text_field',
+			'_tb247_item_code'      => 'sanitize_text_field',
 			'_tb247_jan'            => 'sanitize_text_field',
 			'_tb247_sale_price'     => 'absint',
 			'_tb247_image'          => 'esc_url_raw',

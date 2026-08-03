@@ -243,6 +243,8 @@ class TB247_DM_Deal_Service {
 	private static function write_meta( $post_id, $marketplace, $code, array $payload ) {
 		update_post_meta( $post_id, '_tb247_marketplace', sanitize_key( $marketplace ) );
 		update_post_meta( $post_id, '_tb247_asin', $code );
+		update_post_meta( $post_id, '_tb247_shop_code', sanitize_text_field( $payload['shop_code'] ?? '' ) );
+		update_post_meta( $post_id, '_tb247_item_code', sanitize_text_field( $payload['item_code'] ?? '' ) );
 		update_post_meta( $post_id, '_tb247_jan', sanitize_text_field( $payload['jan'] ?? '' ) );
 		update_post_meta( $post_id, '_tb247_sale_price', isset( $payload['sale_price'] ) ? absint( $payload['sale_price'] ) : 0 );
 		update_post_meta( $post_id, '_tb247_image', esc_url_raw( $payload['image'] ?? '' ) );

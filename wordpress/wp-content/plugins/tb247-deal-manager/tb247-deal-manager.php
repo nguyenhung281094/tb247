@@ -23,6 +23,7 @@ define( 'TB247_DM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 require_once TB247_DM_PLUGIN_DIR . 'includes/marketplaces/interface-marketplace.php';
 require_once TB247_DM_PLUGIN_DIR . 'includes/marketplaces/class-marketplace-registry.php';
 require_once TB247_DM_PLUGIN_DIR . 'includes/marketplaces/class-amazon-marketplace.php';
+require_once TB247_DM_PLUGIN_DIR . 'includes/marketplaces/class-rakuten-marketplace.php';
 require_once TB247_DM_PLUGIN_DIR . 'includes/marketplaces/class-url-guard.php';
 require_once TB247_DM_PLUGIN_DIR . 'includes/cpt/class-deal-post-type.php';
 require_once TB247_DM_PLUGIN_DIR . 'includes/services/class-deal-service.php';

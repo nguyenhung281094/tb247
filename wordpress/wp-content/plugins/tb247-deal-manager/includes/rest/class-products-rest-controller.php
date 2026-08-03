@@ -63,7 +63,25 @@ class TB247_DM_Products_Rest_Controller {
 			);
 		}
 
-		$validation = TB247_DM_Products_Validator::validate( $payload );
+		// Không có marketplace trong payload = amazon, giữ đúng hành vi hiện tại
+		// của bot (chưa từng gửi field này).
+		$marketplace_slug = isset( $payload['marketplace'] ) ? sanitize_key( (string) $payload['marketplace'] ) : 'amazon';
+		$marketplace      = TB247_DM_Marketplace_Registry::get( $marketplace_slug );
+
+		if ( ! $marketplace ) {
+			self::log( 'validation_failed', '', 'unsupported_marketplace' );
+
+			return new WP_REST_Response(
+				array(
+					'success' => false,
+					'code'    => 'invalid_request',
+					'message' => __( 'Unsupported marketplace.', 'tb247-deal-manager' ),
+				),
+				400
+			);
+		}
+
+		$validation = TB247_DM_Products_Validator::validate( $payload, $marketplace_slug );
 
 		if ( ! $validation['valid'] ) {
 			self::log( 'validation_failed', isset( $payload['asin'] ) ? sanitize_text_field( (string) $payload['asin'] ) : '' );
@@ -79,32 +97,44 @@ class TB247_DM_Products_Rest_Controller {
 			);
 		}
 
-		$product     = $validation['data'];
-		$marketplace = TB247_DM_Marketplace_Registry::get( 'amazon' );
+		$product = $validation['data'];
 
-		if ( ! $marketplace ) {
-			self::log( 'server_error', $product['asin'], 'marketplace_not_registered' );
-			return self::generic_server_error_response();
+		if ( 'amazon' === $marketplace_slug ) {
+			// Ánh xạ sang field name nội bộ mà Deal_Service/Amazon_Marketplace
+			// đang dùng (product_name/sale_price) — không đổi 1 dòng so với
+			// hành vi hiện tại.
+			$deal_payload = array(
+				'asin'          => $product['asin'],
+				'product_name'  => $product['title'],
+				'jan'           => $product['jan'],
+				'sale_price'    => $product['price'],
+				'image'         => $product['image'],
+				'affiliate_url' => $product['affiliate_url'],
+				'product_url'   => '',
+				'brand'         => $product['brand'],
+				'in_stock'      => $product['in_stock'],
+			);
+		} else {
+			// Rakuten (và sàn tương tự sau này): không có asin/brand — dùng
+			// shop_code/item_code, product_url lấy từ source_url đã validate.
+			$deal_payload = array(
+				'shop_code'     => $product['shop_code'],
+				'item_code'     => $product['item_code'],
+				'product_name'  => $product['title'],
+				'jan'           => $product['jan'],
+				'sale_price'    => $product['price'],
+				'image'         => $product['image'],
+				'affiliate_url' => $product['affiliate_url'],
+				'product_url'   => $product['source_url'],
+				'brand'         => '',
+				'in_stock'      => $product['in_stock'],
+			);
 		}
-
-		// Ánh xạ sang field name nội bộ mà Deal_Service/Amazon_Marketplace đang
-		// dùng (product_name/sale_price) — Deal_Service không đổi gì cả.
-		$deal_payload = array(
-			'asin'          => $product['asin'],
-			'product_name'  => $product['title'],
-			'jan'           => $product['jan'],
-			'sale_price'    => $product['price'],
-			'image'         => $product['image'],
-			'affiliate_url' => $product['affiliate_url'],
-			'product_url'   => '',
-			'brand'         => $product['brand'],
-			'in_stock'      => $product['in_stock'],
-		);
 
 		$result = TB247_DM_Deal_Service::create_or_update( $marketplace, $deal_payload );
 
 		if ( is_wp_error( $result ) ) {
-			self::log( 'server_error', $product['asin'], $result->get_error_code(), $result->get_error_message() );
+			self::log( 'server_error', isset( $product['asin'] ) ? $product['asin'] : '', $result->get_error_code(), $result->get_error_message() );
 			return self::generic_server_error_response();
 		}
 
