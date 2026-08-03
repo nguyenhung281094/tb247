@@ -101,6 +101,7 @@ check( 'rakuten www', TB247_DM_Url_Guard::validate_marketplace_url( 'https://www
 check( 'rakuten item', TB247_DM_Url_Guard::validate_marketplace_url( 'https://item.rakuten.co.jp/example-shop/example-item/', 'rakuten' ), true );
 check( 'rakuten hb.afl (affiliate)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://hb.afl.rakuten.co.jp/example', 'rakuten' ), true );
 check( 'rakuten r10.to (short link)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://r10.to/example', 'rakuten' ), true );
+check( 'rakuten a.r10.to (short link thật của tài khoản affiliate)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://a.r10.to/fixture123', 'rakuten' ), true );
 check( 'rakuten biccamera exact host (shop không có canonical item.rakuten.co.jp)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://biccamera.rakuten.co.jp/item/4906128579038/', 'rakuten' ), true );
 
 echo "\n########################################\n";
@@ -174,6 +175,55 @@ check_bool(
 $rak_already_clean = 'https://item.rakuten.co.jp/example-shop/example-item/?scid=af_pc_etc';
 $rak_result_clean   = TB247_DM_Url_Guard::strip_tracking_params( $rak_already_clean );
 check_bool( 'URL Rakuten đã sạch giữ nguyên y hệt (không rebuild)', $rak_result_clean === $rak_already_clean );
+
+echo "\n########################################\n";
+echo "# H. RAKUTEN — validate_affiliate_url() (short vs full affiliate URL)\n";
+echo "########################################\n";
+
+$aff_r10       = TB247_DM_Url_Guard::validate_affiliate_url( 'https://r10.to/fixture123', 'rakuten' );
+check_bool( 'r10.to (short) -> PASS', null !== $aff_r10['url'] );
+
+$aff_a_r10 = TB247_DM_Url_Guard::validate_affiliate_url( 'https://a.r10.to/fixture123', 'rakuten' );
+check_bool( 'a.r10.to (short) -> PASS', null !== $aff_a_r10['url'] );
+
+$aff_hbafl = TB247_DM_Url_Guard::validate_affiliate_url( 'https://hb.afl.rakuten.co.jp/hgc/fixture', 'rakuten' );
+check_bool( 'hb.afl.rakuten.co.jp (short) -> PASS', null !== $aff_hbafl['url'] );
+
+$aff_full_scid = TB247_DM_Url_Guard::validate_affiliate_url( 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?scid=af_pc_ich_pcweb_item_copy', 'rakuten' );
+check_bool( 'item.rakuten.co.jp + scid (full) -> PASS', null !== $aff_full_scid['url'] );
+
+$aff_full_sc2id = TB247_DM_Url_Guard::validate_affiliate_url( 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?sc2id=af_101_0_0', 'rakuten' );
+check_bool( 'item.rakuten.co.jp + sc2id (full) -> PASS', null !== $aff_full_sc2id['url'] );
+
+$aff_full_both_url = 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?scid=af_pc_ich_pcweb_item_copy&sc2id=af_101_0_0#reviews';
+$aff_full_both     = TB247_DM_Url_Guard::validate_affiliate_url( $aff_full_both_url, 'rakuten' );
+check_bool( 'item.rakuten.co.jp + scid + sc2id (full) -> PASS', null !== $aff_full_both['url'] );
+check_bool( 'full affiliate URL giữ nguyên query + hash y hệt', $aff_full_both['url'] === $aff_full_both_url );
+
+$aff_biccamera = TB247_DM_Url_Guard::validate_affiliate_url( 'https://biccamera.rakuten.co.jp/item/fixture-item/?scid=af_pc_ich_pcweb_item_copy', 'rakuten' );
+check_bool( 'biccamera.rakuten.co.jp + scid (full) -> PASS', null !== $aff_biccamera['url'] );
+
+$aff_full_missing = TB247_DM_Url_Guard::validate_affiliate_url( 'https://item.rakuten.co.jp/fixture-shop/fixture-item/', 'rakuten' );
+check_bool( 'item.rakuten.co.jp không scid/sc2id -> FAIL', null === $aff_full_missing['url'] );
+check_bool( 'reason = missing_affiliate_parameters', 'missing_affiliate_parameters' === $aff_full_missing['reason'] );
+
+$aff_scid_empty = TB247_DM_Url_Guard::validate_affiliate_url( 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?scid=', 'rakuten' );
+check_bool( 'scid rỗng -> FAIL (missing_affiliate_parameters)', null === $aff_scid_empty['url'] && 'missing_affiliate_parameters' === $aff_scid_empty['reason'] );
+
+$aff_sc2id_empty = TB247_DM_Url_Guard::validate_affiliate_url( 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?sc2id=', 'rakuten' );
+check_bool( 'sc2id rỗng -> FAIL (missing_affiliate_parameters)', null === $aff_sc2id_empty['url'] && 'missing_affiliate_parameters' === $aff_sc2id_empty['reason'] );
+
+$aff_only_utm = TB247_DM_Url_Guard::validate_affiliate_url( 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?utm_source=discord', 'rakuten' );
+check_bool( 'chỉ UTM, không affiliate parameter -> FAIL', null === $aff_only_utm['url'] && 'missing_affiliate_parameters' === $aff_only_utm['reason'] );
+
+$aff_malicious_1 = TB247_DM_Url_Guard::validate_affiliate_url( 'https://evil.a.r10.to/x', 'rakuten' );
+check_bool( 'evil.a.r10.to -> FAIL (host không exact match)', null === $aff_malicious_1['url'] );
+
+$aff_malicious_2 = TB247_DM_Url_Guard::validate_affiliate_url( 'https://a.r10.to.evil.example/x', 'rakuten' );
+check_bool( 'a.r10.to.evil.example -> FAIL (host không exact match)', null === $aff_malicious_2['url'] );
+
+$aff_malicious_3 = TB247_DM_Url_Guard::validate_affiliate_url( 'https://item.rakuten.co.jp.evil.example/x?scid=abc', 'rakuten' );
+check_bool( 'item.rakuten.co.jp.evil.example -> FAIL (host không exact match)', null === $aff_malicious_3['url'] );
 
 echo "\n########################################\n";
 echo "TỔNG KẾT: $pass PASS, $fail FAIL\n";

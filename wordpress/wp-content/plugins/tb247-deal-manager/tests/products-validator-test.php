@@ -223,6 +223,61 @@ vcheck(
 );
 
 echo "\n########################################\n";
+echo "# C3. RAKUTEN — full affiliate product URL (scid/sc2id) qua /products validator\n";
+echo "########################################\n";
+
+$full_scid_payload = $valid_rakuten_payload;
+$full_scid_payload['affiliate_url'] = 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?scid=af_pc_ich_pcweb_item_copy';
+$full_scid_result = TB247_DM_Products_Validator::validate( $full_scid_payload, 'rakuten' );
+vcheck( 'affiliate_url full item.rakuten.co.jp + scid -> valid=true', $full_scid_result['valid'] );
+vcheck( 'affiliate_url full giữ nguyên y hệt', $full_scid_result['data']['affiliate_url'] === $full_scid_payload['affiliate_url'] );
+
+$full_sc2id_payload = $valid_rakuten_payload;
+$full_sc2id_payload['affiliate_url'] = 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?sc2id=af_101_0_0';
+vcheck( 'affiliate_url full item.rakuten.co.jp + sc2id -> valid=true', TB247_DM_Products_Validator::validate( $full_sc2id_payload, 'rakuten' )['valid'] );
+
+$full_both_url     = 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?scid=af_pc_ich_pcweb_item_copy&sc2id=af_101_0_0#reviews';
+$full_both_payload = $valid_rakuten_payload;
+$full_both_payload['affiliate_url'] = $full_both_url;
+$full_both_result = TB247_DM_Products_Validator::validate( $full_both_payload, 'rakuten' );
+vcheck( 'affiliate_url full scid+sc2id -> valid=true', $full_both_result['valid'] );
+vcheck( 'affiliate_url full giữ nguyên query + hash y hệt', $full_both_result['data']['affiliate_url'] === $full_both_url );
+
+$full_missing_payload = $valid_rakuten_payload;
+$full_missing_payload['affiliate_url'] = 'https://item.rakuten.co.jp/fixture-shop/fixture-item/';
+$full_missing_result = TB247_DM_Products_Validator::validate( $full_missing_payload, 'rakuten' );
+vcheck( 'affiliate_url full URL không scid/sc2id -> valid=false', false === $full_missing_result['valid'] );
+vcheck( 'errors.affiliate_url = missing_affiliate_parameters', 'missing_affiliate_parameters' === ( $full_missing_result['errors']['affiliate_url'] ?? null ) );
+vcheck( 'source_url KHÔNG được dùng làm fallback khi affiliate_url thiếu params', '' === $full_missing_result['data']['affiliate_url'] );
+
+$scid_empty_payload = $valid_rakuten_payload;
+$scid_empty_payload['affiliate_url'] = 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?scid=';
+vcheck( 'scid rỗng -> valid=false', false === TB247_DM_Products_Validator::validate( $scid_empty_payload, 'rakuten' )['valid'] );
+
+$sc2id_empty_payload = $valid_rakuten_payload;
+$sc2id_empty_payload['affiliate_url'] = 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?sc2id=';
+vcheck( 'sc2id rỗng -> valid=false', false === TB247_DM_Products_Validator::validate( $sc2id_empty_payload, 'rakuten' )['valid'] );
+
+$utm_only_payload = $valid_rakuten_payload;
+$utm_only_payload['affiliate_url'] = 'https://item.rakuten.co.jp/fixture-shop/fixture-item/?utm_source=discord';
+vcheck( 'chỉ UTM, không affiliate parameter -> valid=false', false === TB247_DM_Products_Validator::validate( $utm_only_payload, 'rakuten' )['valid'] );
+
+$a_r10_payload = $valid_rakuten_payload;
+$a_r10_payload['affiliate_url'] = 'https://a.r10.to/fixture123';
+$a_r10_result = TB247_DM_Products_Validator::validate( $a_r10_payload, 'rakuten' );
+vcheck( 'affiliate_url=a.r10.to (short) -> valid=true', $a_r10_result['valid'] );
+vcheck( 'affiliate_url a.r10.to giữ nguyên y hệt', $a_r10_result['data']['affiliate_url'] === $a_r10_payload['affiliate_url'] );
+
+$source_valid_aff_invalid_payload = $valid_rakuten_payload;
+$source_valid_aff_invalid_payload['affiliate_url'] = 'https://item.rakuten.co.jp/fixture-shop/fixture-item/';
+$source_valid_aff_invalid_result = TB247_DM_Products_Validator::validate( $source_valid_aff_invalid_payload, 'rakuten' );
+vcheck(
+	'source_url hợp lệ nhưng affiliate_url thiếu params -> TOÀN BỘ request valid=false',
+	false === $source_valid_aff_invalid_result['valid']
+	&& $source_valid_aff_invalid_result['data']['source_url'] === $valid_rakuten_payload['source_url']
+);
+
+echo "\n########################################\n";
 echo "# D. RAKUTEN — point field bị ignore hoàn toàn (không có trong output)\n";
 echo "########################################\n";
 $with_points = $valid_rakuten_payload;

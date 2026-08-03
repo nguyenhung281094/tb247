@@ -48,6 +48,9 @@ class TB247_DM_Url_Guard {
 				'item.rakuten.co.jp',
 				'hb.afl.rakuten.co.jp',
 				'r10.to',
+				// Short affiliate link host thực tế của tài khoản affiliate hiện
+				// tại (khác r10.to trần) — xác minh qua audit thực tế 2026-08-04.
+				'a.r10.to',
 				// Exact host riêng cho shop không có canonical item.rakuten.co.jp
 				// hợp lệ — đã xác minh thực tế qua audit (rel=canonical/og:url
 				// của BicCamera trỏ về chính nó, không phải item.rakuten.co.jp).
@@ -121,6 +124,90 @@ class TB247_DM_Url_Guard {
 		}
 
 		return esc_url_raw( $url );
+	}
+
+	/**
+	 * Hostname "short affiliate URL" của Rakuten — link tracking/rút gọn chính
+	 * thức, không cần affiliate query parameter để được chấp nhận làm
+	 * affiliate_url.
+	 */
+	const RAKUTEN_SHORT_AFFILIATE_HOSTS = array(
+		'r10.to',
+		'a.r10.to',
+		'hb.afl.rakuten.co.jp',
+	);
+
+	/**
+	 * Tên query parameter affiliate hợp lệ cho 1 full Rakuten product URL dùng
+	 * làm affiliate_url — chỉ cần ít nhất 1 trong 2 có giá trị không rỗng.
+	 */
+	const RAKUTEN_AFFILIATE_QUERY_PARAMS = array(
+		'scid',
+		'sc2id',
+	);
+
+	/**
+	 * Xác thực 1 URL dùng làm affiliate_url — khác validate_marketplace_url()
+	 * (dùng chung cho cả source_url) ở chỗ: với Rakuten, nếu host là 1 full
+	 * product host (không phải short affiliate host), bắt buộc phải có ít
+	 * nhất 1 trong RAKUTEN_AFFILIATE_QUERY_PARAMS với giá trị không rỗng —
+	 * tránh nhận nhầm 1 URL sản phẩm thường (không mang affiliate tag) làm
+	 * affiliate_url.
+	 *
+	 * @param string $url         URL thô cần kiểm tra.
+	 * @param string $marketplace Slug sàn (vd: "rakuten").
+	 * @return array{url: string|null, reason: string|null}
+	 */
+	public static function validate_affiliate_url( $url, $marketplace ) {
+		$validated = self::validate_marketplace_url( $url, $marketplace );
+
+		if ( null === $validated ) {
+			return array(
+				'url'    => null,
+				'reason' => 'invalid_affiliate_url',
+			);
+		}
+
+		$marketplace_key = sanitize_key( (string) $marketplace );
+
+		if ( 'rakuten' !== $marketplace_key ) {
+			return array(
+				'url'    => $validated,
+				'reason' => null,
+			);
+		}
+
+		$parts = wp_parse_url( $validated );
+		$host  = strtolower( rtrim( (string) ( $parts['host'] ?? '' ), '.' ) );
+
+		if ( in_array( $host, self::RAKUTEN_SHORT_AFFILIATE_HOSTS, true ) ) {
+			return array(
+				'url'    => $validated,
+				'reason' => null,
+			);
+		}
+
+		// Full Rakuten product host — bắt buộc có ít nhất 1 affiliate query
+		// parameter không rỗng, nếu không thì đây chỉ là URL sản phẩm thường.
+		$query_args = array();
+
+		if ( ! empty( $parts['query'] ) ) {
+			parse_str( $parts['query'], $query_args );
+		}
+
+		foreach ( self::RAKUTEN_AFFILIATE_QUERY_PARAMS as $param_name ) {
+			if ( isset( $query_args[ $param_name ] ) && '' !== trim( (string) $query_args[ $param_name ] ) ) {
+				return array(
+					'url'    => $validated,
+					'reason' => null,
+				);
+			}
+		}
+
+		return array(
+			'url'    => null,
+			'reason' => 'missing_affiliate_parameters',
+		);
 	}
 
 	/**
@@ -205,6 +292,17 @@ class TB247_DM_Url_Guard {
  */
 function tb247_validate_marketplace_url( $url, $marketplace ) {
 	return TB247_DM_Url_Guard::validate_marketplace_url( $url, $marketplace );
+}
+
+/**
+ * Xác thực 1 URL dùng làm affiliate_url — xem TB247_DM_Url_Guard::validate_affiliate_url().
+ *
+ * @param string $url         URL thô cần kiểm tra.
+ * @param string $marketplace Slug sàn (vd: "rakuten").
+ * @return array{url: string|null, reason: string|null}
+ */
+function tb247_validate_affiliate_url( $url, $marketplace ) {
+	return TB247_DM_Url_Guard::validate_affiliate_url( $url, $marketplace );
 }
 
 /**

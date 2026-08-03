@@ -89,7 +89,7 @@ class TB247_DM_Products_Validator {
 		$data['price'] = self::validate_positive_price( $payload, $errors );
 		$data['image'] = self::validate_url_field( $payload, 'image', __( 'Image must be a valid http or https URL.', 'tb247-deal-manager' ), true, $errors );
 
-		$data['affiliate_url'] = self::validate_marketplace_url_field( $payload, 'affiliate_url', $marketplace, true, $errors );
+		$data['affiliate_url'] = self::validate_affiliate_url_field( $payload, 'affiliate_url', $marketplace, $errors );
 		$data['source_url']    = self::validate_marketplace_url_field( $payload, 'source_url', $marketplace, false, $errors );
 
 		$data['in_stock'] = self::validate_in_stock( $payload );
@@ -166,6 +166,55 @@ class TB247_DM_Products_Validator {
 		}
 
 		return $validated;
+	}
+
+	/**
+	 * Validate field affiliate_url — khác validate_marketplace_url_field()
+	 * (dùng cho source_url) ở chỗ đi qua tb247_validate_affiliate_url(): với
+	 * Rakuten, 1 full product URL (không phải short affiliate host) bắt buộc
+	 * phải mang ít nhất 1 affiliate query parameter (scid/sc2id) mới được
+	 * chấp nhận — tránh nhận nhầm URL sản phẩm thường làm affiliate_url.
+	 *
+	 * @param array                $payload     Payload thô.
+	 * @param string               $field       Tên field trong payload.
+	 * @param string               $marketplace Slug sàn.
+	 * @param array<string,string> $errors      Mảng lỗi, truyền theo tham chiếu.
+	 * @return string
+	 */
+	private static function validate_affiliate_url_field( array $payload, $field, $marketplace, array &$errors ) {
+		$raw = isset( $payload[ $field ] ) ? trim( (string) $payload[ $field ] ) : '';
+
+		if ( '' === $raw ) {
+			$errors[ $field ] = sprintf(
+				/* translators: %s: field name */
+				__( '%s is required and must be a valid, approved marketplace affiliate URL.', 'tb247-deal-manager' ),
+				$field
+			);
+			return '';
+		}
+
+		if ( ! function_exists( 'tb247_validate_affiliate_url' ) ) {
+			$errors[ $field ] = __( 'URL validation is unavailable.', 'tb247-deal-manager' );
+			return '';
+		}
+
+		$result = tb247_validate_affiliate_url( $raw, $marketplace );
+
+		if ( null === $result['url'] ) {
+			// missing_affiliate_parameters giữ nguyên dạng mã lỗi máy đọc được
+			// (không dịch sang câu người đọc) để Bot/consumer phân biệt được lý
+			// do cụ thể thay vì chỉ 1 thông báo chung chung.
+			$errors[ $field ] = 'missing_affiliate_parameters' === $result['reason']
+				? 'missing_affiliate_parameters'
+				: sprintf(
+					/* translators: %s: field name */
+					__( '%s must be a valid https URL from an approved marketplace affiliate host.', 'tb247-deal-manager' ),
+					$field
+				);
+			return '';
+		}
+
+		return $result['url'];
 	}
 
 	/**
