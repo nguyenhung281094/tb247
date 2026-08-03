@@ -180,6 +180,49 @@ unset( $missing_affiliate['affiliate_url'] );
 vcheck( 'thiếu affiliate_url (bắt buộc) -> invalid', false === TB247_DM_Products_Validator::validate( $missing_affiliate, 'rakuten' )['valid'] );
 
 echo "\n########################################\n";
+echo "# C2. RAKUTEN — /landing url+aff: source_url và affiliate_url độc lập, r10.to/hb.afl\n";
+echo "########################################\n";
+
+// r10.to làm affiliate_url (source_url vẫn item.rakuten.co.jp) -> PASS.
+$r10_affiliate_payload = $valid_rakuten_payload;
+$r10_affiliate_payload['affiliate_url'] = 'https://r10.to/abcde';
+$r10_result = TB247_DM_Products_Validator::validate( $r10_affiliate_payload, 'rakuten' );
+vcheck( 'affiliate_url=r10.to (source_url=item.rakuten.co.jp) -> valid=true', $r10_result['valid'] );
+vcheck( 'affiliate_url r10.to giữ nguyên y hệt trong data output', $r10_result['data']['affiliate_url'] === 'https://r10.to/abcde' );
+vcheck( 'source_url vẫn là item.rakuten.co.jp, KHÔNG bị thay bằng affiliate_url', $r10_result['data']['source_url'] === $valid_rakuten_payload['source_url'] );
+
+// hb.afl.rakuten.co.jp làm affiliate_url (đã PASS sẵn ở valid_rakuten_payload) — xác nhận rõ ràng ở đây.
+$hbafl_result = TB247_DM_Products_Validator::validate( $valid_rakuten_payload, 'rakuten' );
+vcheck( 'affiliate_url=hb.afl.rakuten.co.jp -> valid=true', $hbafl_result['valid'] );
+vcheck( 'affiliate_url hb.afl giữ nguyên y hệt trong data output', $hbafl_result['data']['affiliate_url'] === $valid_rakuten_payload['affiliate_url'] );
+
+// source_url hợp lệ nhưng affiliate_url độc hại -> TOÀN BỘ request FAIL (không chỉ field đó).
+$malicious_affiliate_valid_source = $valid_rakuten_payload;
+$malicious_affiliate_valid_source['affiliate_url'] = 'https://r10.to.evil.example/abcde';
+$malicious_result = TB247_DM_Products_Validator::validate( $malicious_affiliate_valid_source, 'rakuten' );
+vcheck( 'source_url hợp lệ nhưng affiliate_url giả dạng r10.to -> valid=false (toàn request reject)', false === $malicious_result['valid'] );
+vcheck( 'error chỉ rõ field affiliate_url', isset( $malicious_result['errors']['affiliate_url'] ) );
+
+$fake_r10_affiliate = $valid_rakuten_payload;
+$fake_r10_affiliate['affiliate_url'] = 'https://fake-r10.to/abcde';
+vcheck( 'affiliate_url=fake-r10.to -> invalid (exact host, không phải suffix match)', false === TB247_DM_Products_Validator::validate( $fake_r10_affiliate, 'rakuten' )['valid'] );
+
+// Không fallback affiliate_url về source_url khi affiliate_url invalid — data['affiliate_url'] phải rỗng, không lặng lẽ dùng source_url.
+vcheck(
+	'affiliate_url invalid -> data output rỗng, KHÔNG tự fallback về source_url',
+	'' === $malicious_result['data']['affiliate_url'] && $malicious_result['data']['affiliate_url'] !== $malicious_result['data']['source_url']
+);
+
+// Query string + hash của affiliate_url giữ nguyên y hệt (không đổi thứ tự/encoding).
+$affiliate_with_query_hash = $valid_rakuten_payload;
+$affiliate_with_query_hash['affiliate_url'] = 'https://hb.afl.rakuten.co.jp/hgc/example?pc=xyz&m=abc&scid=af_pc_etc#reviews';
+$query_hash_result = TB247_DM_Products_Validator::validate( $affiliate_with_query_hash, 'rakuten' );
+vcheck(
+	'affiliate_url có query string + hash -> giữ nguyên y hệt (không đổi thứ tự/encoding)',
+	$query_hash_result['valid'] && $query_hash_result['data']['affiliate_url'] === 'https://hb.afl.rakuten.co.jp/hgc/example?pc=xyz&m=abc&scid=af_pc_etc#reviews'
+);
+
+echo "\n########################################\n";
 echo "# D. RAKUTEN — point field bị ignore hoàn toàn (không có trong output)\n";
 echo "########################################\n";
 $with_points = $valid_rakuten_payload;
