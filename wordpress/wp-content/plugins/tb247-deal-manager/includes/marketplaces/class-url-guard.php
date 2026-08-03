@@ -48,6 +48,11 @@ class TB247_DM_Url_Guard {
 				'item.rakuten.co.jp',
 				'hb.afl.rakuten.co.jp',
 				'r10.to',
+				// Exact host riêng cho shop không có canonical item.rakuten.co.jp
+				// hợp lệ — đã xác minh thực tế qua audit (rel=canonical/og:url
+				// của BicCamera trỏ về chính nó, không phải item.rakuten.co.jp).
+				// Chỉ thêm hostname đã xác minh, KHÔNG dùng wildcard *.rakuten.co.jp.
+				'biccamera.rakuten.co.jp',
 			),
 			'yahoo'   => array(
 				'shopping.yahoo.co.jp',

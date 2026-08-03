@@ -101,12 +101,17 @@ check( 'rakuten www', TB247_DM_Url_Guard::validate_marketplace_url( 'https://www
 check( 'rakuten item', TB247_DM_Url_Guard::validate_marketplace_url( 'https://item.rakuten.co.jp/example-shop/example-item/', 'rakuten' ), true );
 check( 'rakuten hb.afl (affiliate)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://hb.afl.rakuten.co.jp/example', 'rakuten' ), true );
 check( 'rakuten r10.to (short link)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://r10.to/example', 'rakuten' ), true );
+check( 'rakuten biccamera exact host (shop không có canonical item.rakuten.co.jp)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://biccamera.rakuten.co.jp/item/4906128579038/', 'rakuten' ), true );
 
 echo "\n########################################\n";
 echo "# E. RAKUTEN — REJECT phải chặn\n";
 echo "########################################\n";
 check( 'rakuten.co.jp.evil.example', TB247_DM_Url_Guard::validate_marketplace_url( 'https://rakuten.co.jp.evil.example/', 'rakuten' ), false );
 check( 'item.rakuten.co.jp.evil.example', TB247_DM_Url_Guard::validate_marketplace_url( 'https://item.rakuten.co.jp.evil.example/', 'rakuten' ), false );
+check( 'biccamera.rakuten.co.jp.evil.example (giả dạng host mới thêm)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://biccamera.rakuten.co.jp.evil.example/item/123/', 'rakuten' ), false );
+check( 'fakebiccamera.rakuten.co.jp (không tự accept, không phải exact host đã thêm)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://fakebiccamera.rakuten.co.jp/item/123/', 'rakuten' ), false );
+check( 'http://biccamera.rakuten.co.jp (không phải https)', TB247_DM_Url_Guard::validate_marketplace_url( 'http://biccamera.rakuten.co.jp/item/4906128579038/', 'rakuten' ), false );
+check( 'biccamera.rakuten.co.jp có userinfo', TB247_DM_Url_Guard::validate_marketplace_url( 'https://user:pass@biccamera.rakuten.co.jp/item/4906128579038/', 'rakuten' ), false );
 check( 'fake-rakuten.co.jp', TB247_DM_Url_Guard::validate_marketplace_url( 'https://fake-rakuten.co.jp/', 'rakuten' ), false );
 check( 'evilrakuten.co.jp', TB247_DM_Url_Guard::validate_marketplace_url( 'https://evilrakuten.co.jp/', 'rakuten' ), false );
 check( 'open redirect qua query (?next=)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://evil.example/?next=https://rakuten.co.jp/', 'rakuten' ), false );
