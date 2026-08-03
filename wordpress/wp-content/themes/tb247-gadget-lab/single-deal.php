@@ -50,13 +50,8 @@ while ( have_posts() ) :
 	// của deal (Amazon hiện tại, Rakuten/Yahoo sau này không cần sửa lại ở đây).
 	$marketplace_link_attrs = tb247_get_marketplace_link_attributes( $marketplace );
 
-	// Text nút mua theo đúng sàn — 'amazon' (kể cả marketplace rỗng, giữ đúng
-	// hành vi hiện tại) giữ nguyên chữ "Amazon" y hệt trước đây.
-	$buy_button_labels = array(
-		'amazon'  => 'Amazon',
-		'rakuten' => __( '楽天で購入', 'tb247-gadget-lab' ),
-	);
-	$buy_button_label = isset( $buy_button_labels[ $marketplace ] ) ? $buy_button_labels[ $marketplace ] : 'Amazon';
+	// Text nút mua theo đúng sàn qua helper dùng chung (test được độc lập).
+	$buy_button_label = tb247_get_marketplace_buy_button_label( $marketplace );
 	?>
 	<article class="tb247-deal">
 		<div class="tb247-deal-container">

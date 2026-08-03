@@ -119,6 +119,25 @@ function tb247_get_marketplace_link_attributes( $marketplace = 'amazon' ) {
 }
 
 /**
+ * Text nút mua theo đúng sàn. Amazon (mặc định, kể cả marketplace rỗng/legacy
+ * — giữ đúng hành vi hiện tại) giữ nguyên "Amazon". Rakuten hiện "RAKUTEN"
+ * (chuẩn hoá CTA — không dùng "楽天で購入" nữa).
+ *
+ * @param string $marketplace Slug sàn (vd: "amazon", "rakuten").
+ * @return string
+ */
+function tb247_get_marketplace_buy_button_label( $marketplace = 'amazon' ) {
+	$marketplace = sanitize_key( (string) $marketplace );
+
+	$labels = array(
+		'amazon'  => 'Amazon',
+		'rakuten' => 'RAKUTEN',
+	);
+
+	return isset( $labels[ $marketplace ] ) ? $labels[ $marketplace ] : 'Amazon';
+}
+
+/**
  * In 1 card sản phẩm cho trang danh sách (おすすめ商品/随時セール情報). Dùng chung
  * quy tắc ẩn giá khi hết hàng như single-deal.php: chỉ '0' (_tb247_in_stock)
  * mới ép ẩn giá, mọi giá trị khác giữ hành vi cũ (theo giá > 0).
