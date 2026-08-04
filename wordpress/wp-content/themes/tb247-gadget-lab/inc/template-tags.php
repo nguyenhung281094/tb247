@@ -43,6 +43,165 @@ function tb247_get_home_link_cards() {
 }
 
 /**
+ * Marketplace slug hợp lệ cho filter /recommended/ — allowlist chính xác
+ * khớp với giá trị thật lưu trong _tb247_marketplace (xem
+ * TB247_DM_Deal_Service::write_meta() — sanitize_key($marketplace) của
+ * marketplace slug thật: amazon/rakuten/yahoo). KHÔNG dùng wildcard, không
+ * nhận taxonomy/meta key từ GET.
+ *
+ * @return string[]
+ */
+function tb247_get_recommended_marketplace_slugs() {
+	return array( 'amazon', 'rakuten', 'yahoo' );
+}
+
+/**
+ * Nhãn hiển thị cho từng lựa chọn filter marketplace trên /recommended/,
+ * bao gồm cả "すべて" (không phải marketplace thật, chỉ là lựa chọn UI) —
+ * dùng chung cho cả sidebar desktop và tab ngang mobile để không lặp danh
+ * sách 2 nơi. Amazon/Rakuten/Yahoo tái sử dụng đúng tb247_marketplace_label().
+ *
+ * @return array<int, array{slug: string, label: string}> slug rỗng = すべて.
+ */
+function tb247_get_recommended_filter_options() {
+	$options = array(
+		array(
+			'slug'  => '',
+			'label' => __( 'すべて', 'tb247-gadget-lab' ),
+		),
+	);
+
+	foreach ( tb247_get_recommended_marketplace_slugs() as $slug ) {
+		$options[] = array(
+			'slug'  => $slug,
+			'label' => tb247_marketplace_label( $slug ),
+		);
+	}
+
+	return $options;
+}
+
+/**
+ * Sanitize + validate giá trị marketplace filter thô (vd từ $_GET['marketplace'])
+ * — chỉ chấp nhận đúng 1 trong allowlist qua so khớp exact (in_array strict),
+ * không dùng trực tiếp trong SQL/meta_query nếu không qua bước này trước.
+ * Mọi giá trị không hợp lệ (kể cả rỗng/thiếu) fallback về '' (すべて) — không
+ * bao giờ Fatal, không tạo meta_query tuỳ ý.
+ *
+ * @param string $raw Giá trị thô, chưa qua xử lý.
+ * @return string '' (すべて) hoặc 1 trong tb247_get_recommended_marketplace_slugs().
+ */
+function tb247_sanitize_recommended_marketplace( $raw ) {
+	$slug = sanitize_key( (string) $raw );
+
+	return in_array( $slug, tb247_get_recommended_marketplace_slugs(), true ) ? $slug : '';
+}
+
+/**
+ * Query deal đang bật is_recommended, lọc theo marketplace (nếu có) + phân
+ * trang 12 sản phẩm/trang — TÁCH RIÊNG khỏi tb247_query_deals_by_flag() (vẫn
+ * dùng nguyên cho /sale-info/, không marketplace filter/pagination) để không
+ * đổi hành vi trang đó. $marketplace PHẢI đã qua
+ * tb247_sanitize_recommended_marketplace() trước khi gọi hàm này.
+ *
+ * @param string $marketplace '' (すべて) hoặc 1 trong allowlist marketplace.
+ * @param int    $paged       Trang hiện tại, >=1.
+ * @return WP_Query
+ */
+function tb247_query_recommended_deals( $marketplace, $paged ) {
+	$paged = max( 1, (int) $paged );
+
+	$meta_query = array(
+		array(
+			'key'   => '_tb247_is_recommended',
+			'value' => '1',
+		),
+	);
+
+	if ( '' !== $marketplace ) {
+		$meta_query[] = array(
+			'key'   => '_tb247_marketplace',
+			'value' => $marketplace,
+		);
+	}
+
+	return new WP_Query(
+		array(
+			'post_type'      => 'deal',
+			'post_status'    => 'publish',
+			'posts_per_page' => 12,
+			'paged'          => $paged,
+			'orderby'        => 'meta_value',
+			'meta_key'       => '_tb247_last_updated', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+			'order'          => 'DESC',
+			'meta_query'     => $meta_query, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+		)
+	);
+}
+
+/**
+ * Tính danh sách "trang cần hiển thị" cho pagination kiểu
+ * ‹ 前へ 1 2 … 9 次へ › — luôn hiện $edge trang đầu/cuối + $around trang lân
+ * cận trang hiện tại, chèn chuỗi '...' (không phải số) khi có khoảng trống.
+ * Thuần, không phụ thuộc WP_Query/WordPress — test độc lập được.
+ *
+ * @param int $current     Trang hiện tại (>=1).
+ * @param int $total_pages Tổng số trang (>=0; 0/1 nghĩa là không cần pagination).
+ * @param int $edge        Số trang luôn hiện ở đầu và cuối.
+ * @param int $around      Số trang lân cận current mỗi bên.
+ * @return array<int, int|string> Rỗng nếu total_pages <= 1.
+ */
+function tb247_build_pagination_window( $current, $total_pages, $edge = 1, $around = 1 ) {
+	$current     = max( 1, (int) $current );
+	$total_pages = max( 0, (int) $total_pages );
+
+	if ( $total_pages <= 1 ) {
+		return array();
+	}
+
+	$pages = array();
+
+	for ( $i = 1; $i <= $total_pages; $i++ ) {
+		$is_edge   = ( $i <= $edge ) || ( $i > $total_pages - $edge );
+		$is_around = ( $i >= $current - $around ) && ( $i <= $current + $around );
+
+		if ( $is_edge || $is_around ) {
+			$pages[] = $i;
+		} elseif ( empty( $pages ) || '...' !== end( $pages ) ) {
+			$pages[] = '...';
+		}
+	}
+
+	return $pages;
+}
+
+/**
+ * Ghép URL cho 1 lựa chọn filter/trang trên /recommended/ — query string
+ * thuần (?marketplace=...&paged=...), không phụ thuộc rewrite rule riêng,
+ * tránh nhập nhằng $paged vs get_query_var('page') vốn chỉ dành cho URL dạng
+ * /page/N/ trên static Page. paged=1 hoặc marketplace='' không được thêm
+ * vào query string (giữ URL sạch, /recommended/ trần cho "tất cả trang 1").
+ *
+ * @param string $base_url    Permalink gốc của trang /recommended/.
+ * @param string $marketplace '' hoặc 1 trong allowlist marketplace.
+ * @param int    $paged       Trang đích, >=1.
+ * @return string URL đã qua add_query_arg() (cần esc_url() khi echo).
+ */
+function tb247_build_recommended_url( $base_url, $marketplace, $paged ) {
+	$args = array();
+
+	if ( '' !== $marketplace ) {
+		$args['marketplace'] = $marketplace;
+	}
+
+	if ( (int) $paged > 1 ) {
+		$args['paged'] = (int) $paged;
+	}
+
+	return empty( $args ) ? $base_url : add_query_arg( $args, $base_url );
+}
+
+/**
  * Lấy danh sách deal đang bật 1 cờ (is_recommended/is_sale) để hiển thị trên
  * trang おすすめ商品 / 随時セール情報. Không đụng tới Landing Page /d/{code}.
  *
