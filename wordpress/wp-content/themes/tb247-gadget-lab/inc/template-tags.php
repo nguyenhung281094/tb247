@@ -207,14 +207,18 @@ function tb247_build_recommended_url( $base_url, $marketplace, $paged ) {
 }
 
 /**
- * Trang hiện tại của /recommended/ — ƯU TIÊN get_query_var('page') (giá trị
- * WordPress đặt khi URL là dạng pretty /recommended/page/N/, kể cả sau khi
- * redirect_canonical() tự chuyển từ ?paged=N sang dạng này), fallback
- * $_GET['paged'] nếu vì lý do gì đó permalink không hỗ trợ /page/N/ (vd
- * plain permalink structure). Không bao giờ trả về 0 — luôn tối thiểu 1.
+ * Trang hiện tại của /recommended/ — ƯU TIÊN get_query_var('paged') (giá trị
+ * rewrite rule thật của WordPress đặt cho static Page dạng
+ * (.?.+?)/page/?([0-9]{1,})/?$ => index.php?pagename=$1&paged=$2 — xác nhận
+ * qua `wp eval` trên production; KHÔNG PHẢI get_query_var('page'), vốn chỉ
+ * dành cho <!--nextpage--> content pagination, không liên quan ở đây). Vẫn
+ * đúng kể cả sau khi redirect_canonical() tự chuyển ?paged=N sang dạng
+ * /page/N/ này. Fallback $_GET['paged'] nếu vì lý do gì đó rewrite không áp
+ * dụng (vd plain permalink structure). Không bao giờ trả về 0 — luôn tối
+ * thiểu 1.
  *
  * @param int    $get_paged  absint($_GET['paged']) đã tính sẵn ở caller, 0 nếu không có.
- * @param string $query_page get_query_var('page') đã tính sẵn ở caller (chuỗi hoặc rỗng).
+ * @param string $query_page get_query_var('paged') đã tính sẵn ở caller (chuỗi hoặc rỗng).
  * @return int
  */
 function tb247_resolve_recommended_paged( $get_paged, $query_page ) {

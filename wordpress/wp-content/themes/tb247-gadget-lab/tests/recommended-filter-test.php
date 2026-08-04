@@ -149,7 +149,7 @@ check(
 check( 'rakuten + page 2 -> đúng /page/2/ + marketplace', $base . 'page/2/?marketplace=rakuten' === tb247_build_recommended_url( $base, 'rakuten', 2 ) );
 
 echo "\n########################################\n";
-echo "# E2. tb247_resolve_recommended_paged() — ưu tiên get_query_var('page'), tránh bug redirect_canonical()\n";
+echo "# E2. tb247_resolve_recommended_paged() — ưu tiên get_query_var('paged'), tránh bug redirect_canonical()\n";
 echo "########################################\n";
 
 check( 'get_query_var("page")=2, $_GET rỗng -> trang 2 (đúng khi WordPress đã redirect sang /page/2/)', 2 === tb247_resolve_recommended_paged( 0, '2' ) );
@@ -166,7 +166,7 @@ $template_source = file_get_contents( __DIR__ . '/../page-recommended.php' );
 
 check( '$_GET[\'marketplace\'] luôn qua wp_unslash() + tb247_sanitize_recommended_marketplace(), không dùng thẳng', strpos( $template_source, 'tb247_sanitize_recommended_marketplace( $raw_marketplace )' ) !== false );
 check( 'paged luôn qua absint()', strpos( $template_source, 'absint( $_GET[\'paged\'] )' ) !== false );
-check( 'trang hiện tại ưu tiên get_query_var(\'page\') qua tb247_resolve_recommended_paged() (tránh bug redirect_canonical)', strpos( $template_source, "tb247_resolve_recommended_paged( \$get_paged, get_query_var( 'page' ) )" ) !== false );
+check( 'trang hiện tại ưu tiên get_query_var(\'paged\') qua tb247_resolve_recommended_paged() (tránh bug redirect_canonical + đúng query var thật của rewrite rule)', strpos( $template_source, "tb247_resolve_recommended_paged( \$get_paged, get_query_var( 'paged' ) )" ) !== false );
 check( 'dùng tb247_query_recommended_deals() (tách riêng khỏi tb247_query_deals_by_flag dùng cho sale-info)', strpos( $template_source, 'tb247_query_recommended_deals( $active_marketplace, $paged )' ) !== false );
 check( 'KHÔNG query toàn bộ rồi slice bằng PHP (không array_slice trên $deals)', strpos( $template_source, 'array_slice' ) === false );
 check( 'href marketplace/pagination đều qua esc_url()', substr_count( $template_source, 'esc_url(' ) >= 4 );

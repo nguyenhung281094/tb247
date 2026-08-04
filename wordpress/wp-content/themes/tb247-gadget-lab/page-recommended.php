@@ -42,12 +42,16 @@ endwhile;
 // PHP Warning "Array to string conversion".
 $raw_marketplace     = ( isset( $_GET['marketplace'] ) && is_scalar( $_GET['marketplace'] ) ) ? wp_unslash( $_GET['marketplace'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 $active_marketplace  = tb247_sanitize_recommended_marketplace( $raw_marketplace );
-// get_query_var('page') PHẢI được ưu tiên: WordPress tự 301-redirect
-// ?paged=N sang /recommended/page/N/ trên static Page (redirect_canonical()),
-// và tại URL đó $_GET['paged'] không tồn tại — chỉ đọc $_GET sẽ âm thầm
-// hiển thị lại trang 1. Xem tb247_resolve_recommended_paged().
+// get_query_var('paged') PHẢI được ưu tiên: rewrite rule thật của WordPress
+// cho static Page ((.?.+?)/page/?([0-9]{1,})/?$ => index.php?pagename=$1&paged=$2
+// — xác nhận qua `wp eval` trên production) map /recommended/page/N/ vào
+// query var "paged", KHÔNG PHẢI "page" (var đó chỉ dành cho
+// <!--nextpage--> content pagination, không liên quan ở đây). WordPress còn
+// tự 301-redirect ?paged=N sang dạng /page/N/ này (redirect_canonical()) —
+// tại URL sau redirect đó $_GET['paged'] không tồn tại, chỉ get_query_var()
+// mới đọc đúng. Xem tb247_resolve_recommended_paged().
 $get_paged           = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-$paged               = tb247_resolve_recommended_paged( $get_paged, get_query_var( 'page' ) );
+$paged               = tb247_resolve_recommended_paged( $get_paged, get_query_var( 'paged' ) );
 $recommended_query   = tb247_query_recommended_deals( $active_marketplace, $paged );
 $deals               = $recommended_query->posts;
 $total_pages         = (int) $recommended_query->max_num_pages;
