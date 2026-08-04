@@ -23,25 +23,46 @@ function __( $text, $domain = 'default' ) { // phpcs:ignore
 }
 
 /**
- * Stub tối thiểu của add_query_arg( $args, $url ) — đủ cho
- * tb247_build_recommended_url(): nhận mảng key=>value, thêm vào query string
- * của $url (chưa có query string trong mọi URL test ở đây nên không cần xử
- * lý merge với query cũ).
+ * Stub tối thiểu của add_query_arg() — hỗ trợ cả 2 chữ ký thật của WordPress:
+ * add_query_arg( $key, $value, $url ) và add_query_arg( array, $url ). Đủ cho
+ * tb247_build_recommended_url()/tb247_purge_deal_listing_cache(); không xử
+ * lý merge với query string cũ vì mọi URL test ở đây chưa có query string.
  */
-function add_query_arg( $args, $url ) {
-	if ( empty( $args ) ) {
+function add_query_arg( ...$args ) {
+	if ( 2 === count( $args ) && is_array( $args[0] ) ) {
+		list( $params, $url ) = $args;
+	} else {
+		list( $key, $value, $url ) = $args;
+		$params                    = array( $key => $value );
+	}
+
+	if ( empty( $params ) ) {
 		return $url;
 	}
 
 	$pairs = array();
 
-	foreach ( $args as $key => $value ) {
+	foreach ( $params as $key => $value ) {
 		$pairs[] = $key . '=' . $value;
 	}
 
 	$separator = ( false === strpos( $url, '?' ) ) ? '?' : '&';
 
 	return $url . $separator . implode( '&', $pairs );
+}
+
+/**
+ * Stub của trailingslashit() — WP core, thêm "/" cuối chuỗi nếu chưa có.
+ */
+function trailingslashit( $string ) {
+	return rtrim( (string) $string, '/' ) . '/';
+}
+
+/**
+ * Stub của absint() — WP core, abs(intval()).
+ */
+function absint( $value ) {
+	return abs( (int) $value );
 }
 
 require __DIR__ . '/../inc/template-tags.php';
@@ -113,11 +134,29 @@ echo "########################################\n";
 
 $base = 'https://tb247deal.com/recommended/';
 
+// Dùng /page/N/ (pretty permalink) cho trang >1 — KHÔNG dùng ?paged=N: xác
+// nhận thực tế trên production WordPress tự 301-redirect ?paged=N sang
+// /page/N/ trên static Page (redirect_canonical()), và $_GET['paged'] không
+// còn tồn tại ở URL sau redirect đó -> nếu build URL kiểu ?paged=N, trang 2
+// sẽ round-trip qua redirect rồi ÂM THẦM hiển thị lại trang 1.
 check( 'すべて + page 1 -> URL trần, không query string thừa', $base === tb247_build_recommended_url( $base, '', 1 ) );
-check( 'amazon + page 1 -> chỉ có marketplace, KHÔNG có paged=1 (Test 14: đổi marketplace luôn về page 1)', $base . '?marketplace=amazon' === tb247_build_recommended_url( $base, 'amazon', 1 ) );
-check( 'すべて + page 2 -> chỉ có paged, không có marketplace rỗng', $base . '?paged=2' === tb247_build_recommended_url( $base, '', 2 ) );
-check( 'amazon + page 3 -> giữ CẢ marketplace VÀ paged (Test 13: pagination giữ marketplace)', $base . '?marketplace=amazon&paged=3' === tb247_build_recommended_url( $base, 'amazon', 3 ) );
-check( 'rakuten + page 2 -> đúng cả 2 tham số', $base . '?marketplace=rakuten&paged=2' === tb247_build_recommended_url( $base, 'rakuten', 2 ) );
+check( 'amazon + page 1 -> chỉ có marketplace, KHÔNG có /page/1/ (Test 14: đổi marketplace luôn về page 1)', $base . '?marketplace=amazon' === tb247_build_recommended_url( $base, 'amazon', 1 ) );
+check( 'すべて + page 2 -> dùng /page/2/ pretty permalink, không phải ?paged=2', $base . 'page/2/' === tb247_build_recommended_url( $base, '', 2 ) );
+check(
+	'amazon + page 3 -> giữ CẢ marketplace VÀ /page/3/ (Test 13: pagination giữ marketplace)',
+	$base . 'page/3/?marketplace=amazon' === tb247_build_recommended_url( $base, 'amazon', 3 )
+);
+check( 'rakuten + page 2 -> đúng /page/2/ + marketplace', $base . 'page/2/?marketplace=rakuten' === tb247_build_recommended_url( $base, 'rakuten', 2 ) );
+
+echo "\n########################################\n";
+echo "# E2. tb247_resolve_recommended_paged() — ưu tiên get_query_var('page'), tránh bug redirect_canonical()\n";
+echo "########################################\n";
+
+check( 'get_query_var("page")=2, $_GET rỗng -> trang 2 (đúng khi WordPress đã redirect sang /page/2/)', 2 === tb247_resolve_recommended_paged( 0, '2' ) );
+check( 'get_query_var("page") rỗng, $_GET[paged]=2 -> vẫn nhận trang 2 (fallback plain permalink)', 2 === tb247_resolve_recommended_paged( 2, '' ) );
+check( 'cả 2 đều rỗng -> mặc định trang 1', 1 === tb247_resolve_recommended_paged( 0, '' ) );
+check( 'get_query_var("page") ưu tiên hơn $_GET[paged] khi cả 2 cùng có giá trị khác nhau', 3 === tb247_resolve_recommended_paged( 99, '3' ) );
+check( 'get_query_var("page") dạng string "0" -> coi như rỗng, dùng fallback', 5 === tb247_resolve_recommended_paged( 5, '0' ) );
 
 echo "\n########################################\n";
 echo "# F. Structural check: page-recommended.php — query/security/markup\n";
@@ -127,6 +166,7 @@ $template_source = file_get_contents( __DIR__ . '/../page-recommended.php' );
 
 check( '$_GET[\'marketplace\'] luôn qua wp_unslash() + tb247_sanitize_recommended_marketplace(), không dùng thẳng', strpos( $template_source, 'tb247_sanitize_recommended_marketplace( $raw_marketplace )' ) !== false );
 check( 'paged luôn qua absint()', strpos( $template_source, 'absint( $_GET[\'paged\'] )' ) !== false );
+check( 'trang hiện tại ưu tiên get_query_var(\'page\') qua tb247_resolve_recommended_paged() (tránh bug redirect_canonical)', strpos( $template_source, "tb247_resolve_recommended_paged( \$get_paged, get_query_var( 'page' ) )" ) !== false );
 check( 'dùng tb247_query_recommended_deals() (tách riêng khỏi tb247_query_deals_by_flag dùng cho sale-info)', strpos( $template_source, 'tb247_query_recommended_deals( $active_marketplace, $paged )' ) !== false );
 check( 'KHÔNG query toàn bộ rồi slice bằng PHP (không array_slice trên $deals)', strpos( $template_source, 'array_slice' ) === false );
 check( 'href marketplace/pagination đều qua esc_url()', substr_count( $template_source, 'esc_url(' ) >= 4 );

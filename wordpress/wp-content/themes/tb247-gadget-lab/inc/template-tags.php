@@ -176,29 +176,57 @@ function tb247_build_pagination_window( $current, $total_pages, $edge = 1, $arou
 }
 
 /**
- * Ghép URL cho 1 lựa chọn filter/trang trên /recommended/ — query string
- * thuần (?marketplace=...&paged=...), không phụ thuộc rewrite rule riêng,
- * tránh nhập nhằng $paged vs get_query_var('page') vốn chỉ dành cho URL dạng
- * /page/N/ trên static Page. paged=1 hoặc marketplace='' không được thêm
- * vào query string (giữ URL sạch, /recommended/ trần cho "tất cả trang 1").
+ * Ghép URL cho 1 lựa chọn filter/trang trên /recommended/ — trang >1 dùng
+ * ĐÚNG dạng pretty permalink /page/N/ mà WordPix tự nhận diện cho static
+ * Page (KHÔNG dùng ?paged=N): đã xác nhận thực tế redirect_canonical() của
+ * WordPress tự 301-redirect ?paged=N -> /page/N/ trên static Page, và tại
+ * URL sau redirect đó $_GET['paged'] không còn tồn tại nữa — nếu code chỉ
+ * đọc $_GET['paged'] sẽ ÂM THẦM hiển thị lại trang 1 dưới URL "trang 2".
+ * Dựng thẳng URL canonical ngay từ đầu để không phát sinh redirect, không
+ * mất tham số. marketplace vẫn giữ dạng query string (?marketplace=...) vì
+ * đây không phải cấu trúc rewrite của WordPress core.
  *
  * @param string $base_url    Permalink gốc của trang /recommended/.
  * @param string $marketplace '' hoặc 1 trong allowlist marketplace.
  * @param int    $paged       Trang đích, >=1.
- * @return string URL đã qua add_query_arg() (cần esc_url() khi echo).
+ * @return string URL cần esc_url() khi echo.
  */
 function tb247_build_recommended_url( $base_url, $marketplace, $paged ) {
-	$args = array();
+	$paged = max( 1, (int) $paged );
+	$url   = $base_url;
+
+	if ( $paged > 1 ) {
+		$url = trailingslashit( $base_url ) . 'page/' . $paged . '/';
+	}
 
 	if ( '' !== $marketplace ) {
-		$args['marketplace'] = $marketplace;
+		$url = add_query_arg( 'marketplace', $marketplace, $url );
 	}
 
-	if ( (int) $paged > 1 ) {
-		$args['paged'] = (int) $paged;
+	return $url;
+}
+
+/**
+ * Trang hiện tại của /recommended/ — ƯU TIÊN get_query_var('page') (giá trị
+ * WordPress đặt khi URL là dạng pretty /recommended/page/N/, kể cả sau khi
+ * redirect_canonical() tự chuyển từ ?paged=N sang dạng này), fallback
+ * $_GET['paged'] nếu vì lý do gì đó permalink không hỗ trợ /page/N/ (vd
+ * plain permalink structure). Không bao giờ trả về 0 — luôn tối thiểu 1.
+ *
+ * @param int    $get_paged  absint($_GET['paged']) đã tính sẵn ở caller, 0 nếu không có.
+ * @param string $query_page get_query_var('page') đã tính sẵn ở caller (chuỗi hoặc rỗng).
+ * @return int
+ */
+function tb247_resolve_recommended_paged( $get_paged, $query_page ) {
+	$from_query_var = absint( $query_page );
+
+	if ( $from_query_var > 0 ) {
+		return $from_query_var;
 	}
 
-	return empty( $args ) ? $base_url : add_query_arg( $args, $base_url );
+	$from_get = absint( $get_paged );
+
+	return $from_get > 0 ? $from_get : 1;
 }
 
 /**

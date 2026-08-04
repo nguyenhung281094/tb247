@@ -42,8 +42,12 @@ endwhile;
 // PHP Warning "Array to string conversion".
 $raw_marketplace     = ( isset( $_GET['marketplace'] ) && is_scalar( $_GET['marketplace'] ) ) ? wp_unslash( $_GET['marketplace'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 $active_marketplace  = tb247_sanitize_recommended_marketplace( $raw_marketplace );
-$requested_page      = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-$paged               = max( 1, $requested_page );
+// get_query_var('page') PHẢI được ưu tiên: WordPress tự 301-redirect
+// ?paged=N sang /recommended/page/N/ trên static Page (redirect_canonical()),
+// và tại URL đó $_GET['paged'] không tồn tại — chỉ đọc $_GET sẽ âm thầm
+// hiển thị lại trang 1. Xem tb247_resolve_recommended_paged().
+$get_paged           = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+$paged               = tb247_resolve_recommended_paged( $get_paged, get_query_var( 'page' ) );
 $recommended_query   = tb247_query_recommended_deals( $active_marketplace, $paged );
 $deals               = $recommended_query->posts;
 $total_pages         = (int) $recommended_query->max_num_pages;
