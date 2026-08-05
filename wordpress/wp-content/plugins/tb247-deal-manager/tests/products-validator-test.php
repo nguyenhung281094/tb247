@@ -194,6 +194,40 @@ $invalid_affiliate_still_rejected['affiliate_url'] = 'https://evil.example/track
 vcheck( 'CÓ affiliate_url nhưng sai host -> vẫn invalid (optional không có nghĩa nới lỏng validate khi có giá trị)', false === TB247_DM_Products_Validator::validate( $invalid_affiliate_still_rejected, 'rakuten' )['valid'] );
 
 echo "\n########################################\n";
+echo "# C1b. Bug fix production (2026-08-06 01:28 JST): payload builder Bot <-> validator WordPress — integration thật\n";
+echo "########################################\n";
+
+// Payload dựng Y HỆT syncRakutenDealToWordPress() trong wordpress-sync.js
+// (index.js/wordpress-sync.js — Bot repo, không thể require() PHP từ JS nên
+// đối chiếu field-name/shape thủ công tại đây): marketplace, shop_code,
+// item_code, title, jan, price, image, source_url, affiliate_url, in_stock —
+// PHẢI khớp NGUYÊN VĂN tên field validate_rakuten() đang đọc. Đây chính là
+// integration fixture chung §6 yêu cầu — không chỉ mock response 200 phía Bot.
+$bot_payload_shape = array(
+	'shop_code'     => 'superdeal',
+	'item_code'     => '17436wzu10585',
+	'title'         => 'SHARP シャープ 衣類乾燥除湿機 CV-SH150-W ホワイト',
+	'jan'           => '4550556131353',
+	'price'         => 51800,
+	'image'         => 'https://thumbnail.image.rakuten.co.jp/example.jpg',
+	'source_url'    => 'https://item.rakuten.co.jp/superdeal/17436wzu10585/',
+	'affiliate_url' => '', // createRakutenDealForRecommend() gửi affiliateUrl || "" — KHÔNG BAO GIỜ undefined/null.
+);
+$bot_payload_result = TB247_DM_Products_Validator::validate( $bot_payload_shape, 'rakuten' );
+vcheck( 'payload shape THẬT của syncRakutenDealToWordPress() (Rakuten, không aff) -> valid=true qua validator PHP thật', $bot_payload_result['valid'] );
+vcheck( 'field name price/image/jan/title/shop_code/item_code/source_url khớp 1-1 giữa Bot payload và validator (không đoán tên field)', array_keys( $bot_payload_result['data'] ) === array( 'shop_code', 'item_code', 'jan', 'title', 'price', 'image', 'affiliate_url', 'source_url', 'in_stock' ) );
+
+// BUG PRODUCTION THẬT (root cause đã audit từ log): image rỗng vì
+// getKaitoriDataWithImageFallback() TRƯỚC KHI FIX không có bước fallback ảnh
+// -> gửi image: "" -> validator reject với reason "invalid_image" (không phải
+// lỗi field-name, mà là dữ liệu thật sự thiếu). Test này tái hiện CHÍNH XÁC
+// request đã fail thật trên production, xác nhận validator trả đúng field.
+$bot_payload_missing_image = $bot_payload_shape;
+$bot_payload_missing_image['image'] = '';
+$missing_image_result = TB247_DM_Products_Validator::validate( $bot_payload_missing_image, 'rakuten' );
+vcheck( 'TÁI HIỆN bug production: image rỗng -> valid=false, errors.image tồn tại (đúng nguyên nhân log thật "reason=invalid_image")', false === $missing_image_result['valid'] && isset( $missing_image_result['errors']['image'] ) );
+
+echo "\n########################################\n";
 echo "# C2. RAKUTEN — /landing url+aff: source_url và affiliate_url độc lập, r10.to/hb.afl\n";
 echo "########################################\n";
 
