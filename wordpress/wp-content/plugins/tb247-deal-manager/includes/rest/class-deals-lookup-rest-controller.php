@@ -127,6 +127,36 @@ class TB247_DM_Deals_Lookup_Rest_Controller {
 			);
 		}
 
+		// affiliate_url optional (§4.4/§12: /recommend Rakuten trên deal ĐÃ tồn
+		// tại — có aff mới hợp lệ thì cập nhật, aff trống/thiếu thì giữ nguyên).
+		// Validate lại NGHIÊM NGẶT qua đúng allowlist marketplace của deal thay vì
+		// tin payload — Bot đã validate 1 lần (§4) nhưng endpoint này vẫn không
+		// tin tuyệt đối, cùng tinh thần defense-in-depth với /products. KHÔNG
+		// BAO GIỜ ghi affiliate_url rỗng ở đây (chỉ ghi khi có giá trị hợp lệ).
+		if ( isset( $payload['affiliate_url'] ) && '' !== trim( (string) $payload['affiliate_url'] ) ) {
+			$marketplace     = get_post_meta( $deal->ID, '_tb247_marketplace', true );
+			$raw_affiliate   = trim( (string) $payload['affiliate_url'] );
+			$validated_value = null;
+
+			if ( function_exists( 'tb247_validate_affiliate_url' ) ) {
+				$validation      = tb247_validate_affiliate_url( $raw_affiliate, $marketplace );
+				$validated_value = $validation['url'];
+			}
+
+			if ( null === $validated_value ) {
+				return new WP_REST_Response(
+					array(
+						'success' => false,
+						'code'    => 'invalid_affiliate_url',
+						'message' => __( 'affiliate_url must be a valid, approved marketplace affiliate URL.', 'tb247-deal-manager' ),
+					),
+					400
+				);
+			}
+
+			update_post_meta( $deal->ID, '_tb247_affiliate_url', esc_url_raw( $validated_value ) );
+		}
+
 		$is_recommended = self::to_bool_or_null( $payload['is_recommended'] ?? null );
 		$is_sale        = self::to_bool_or_null( $payload['is_sale'] ?? null );
 

@@ -19,6 +19,16 @@ while ( have_posts() ) :
 	$price         = (int) get_post_meta( $deal_id, '_tb247_sale_price', true );
 	$image         = get_post_meta( $deal_id, '_tb247_image', true );
 	$affiliate_url = get_post_meta( $deal_id, '_tb247_affiliate_url', true );
+	$source_url    = get_post_meta( $deal_id, '_tb247_product_url', true );
+
+	// §6: deal (Rakuten) không có affiliate_url -> CTA fallback về source_url
+	// thay vì ẩn hẳn — cùng quy tắc với single-deal.php của theme, bản fallback
+	// tối giản này không chạy tb247_validate_marketplace_url() (không phụ thuộc
+	// theme) nên chỉ check rỗng, không tự bịa domain nếu 2 field cùng rỗng.
+	$has_affiliate = (bool) $affiliate_url;
+	$cta_url       = $has_affiliate ? $affiliate_url : $source_url;
+	$cta_rel       = $has_affiliate ? 'nofollow sponsored noopener' : 'nofollow noopener';
+	$cta_label     = $has_affiliate ? __( 'Amazonで購入', 'tb247-deal-manager' ) : __( '商品ページを見る', 'tb247-deal-manager' );
 
 	// Cùng quy ước với single-deal.php của theme: '0' = hết hàng (ép ẩn giá),
 	// mọi giá trị khác ('1' hoặc '' — chưa có dữ liệu) giữ hành vi cũ (theo giá).
@@ -40,10 +50,10 @@ while ( have_posts() ) :
 			<p>JAN: <?php echo esc_html( $jan ); ?></p>
 		<?php endif; ?>
 
-		<?php if ( $affiliate_url ) : ?>
+		<?php if ( $cta_url ) : ?>
 			<p>
-				<a href="<?php echo esc_url( $affiliate_url ); ?>" rel="nofollow sponsored noopener" target="_blank">
-					<?php esc_html_e( 'Amazonで購入', 'tb247-deal-manager' ); ?>
+				<a href="<?php echo esc_url( $cta_url ); ?>" rel="<?php echo esc_attr( $cta_rel ); ?>" target="_blank">
+					<?php echo esc_html( $cta_label ); ?>
 				</a>
 			</p>
 		<?php endif; ?>

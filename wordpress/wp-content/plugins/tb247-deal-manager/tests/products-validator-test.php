@@ -175,9 +175,23 @@ $source_outside_rakuten = $valid_rakuten_payload;
 $source_outside_rakuten['source_url'] = 'https://evil.example/product';
 vcheck( 'source_url ngoài Rakuten -> invalid', false === TB247_DM_Products_Validator::validate( $source_outside_rakuten, 'rakuten' )['valid'] );
 
+// §4 (task /recommend url+aff): affiliate_url Rakuten KHÔNG còn bắt buộc ở
+// tầng WordPress — /recommend cho phép tạo deal chưa có affiliate URL, giữ
+// rỗng/null, KHÔNG lỗi validate. Nếu CÓ gửi lên vẫn phải hợp lệ (test khác ở
+// trên/dưới đã phủ trường hợp sai host/thiếu scid-sc2id).
 $missing_affiliate = $valid_rakuten_payload;
 unset( $missing_affiliate['affiliate_url'] );
-vcheck( 'thiếu affiliate_url (bắt buộc) -> invalid', false === TB247_DM_Products_Validator::validate( $missing_affiliate, 'rakuten' )['valid'] );
+$missing_affiliate_result = TB247_DM_Products_Validator::validate( $missing_affiliate, 'rakuten' );
+vcheck( 'thiếu affiliate_url (nay optional) -> vẫn valid', true === $missing_affiliate_result['valid'] );
+vcheck( 'thiếu affiliate_url -> data.affiliate_url rỗng (KHÔNG bịa/dùng source_url thay thế)', '' === $missing_affiliate_result['data']['affiliate_url'] );
+
+$empty_affiliate = $valid_rakuten_payload;
+$empty_affiliate['affiliate_url'] = '';
+vcheck( 'affiliate_url rỗng tường minh -> vẫn valid (optional, không phải lỗi)', true === TB247_DM_Products_Validator::validate( $empty_affiliate, 'rakuten' )['valid'] );
+
+$invalid_affiliate_still_rejected = $valid_rakuten_payload;
+$invalid_affiliate_still_rejected['affiliate_url'] = 'https://evil.example/track?scid=123';
+vcheck( 'CÓ affiliate_url nhưng sai host -> vẫn invalid (optional không có nghĩa nới lỏng validate khi có giá trị)', false === TB247_DM_Products_Validator::validate( $invalid_affiliate_still_rejected, 'rakuten' )['valid'] );
 
 echo "\n########################################\n";
 echo "# C2. RAKUTEN — /landing url+aff: source_url và affiliate_url độc lập, r10.to/hb.afl\n";

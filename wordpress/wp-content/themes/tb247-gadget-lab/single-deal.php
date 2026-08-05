@@ -22,6 +22,7 @@ while ( have_posts() ) :
 	$image         = get_post_meta( $deal_id, '_tb247_image', true );
 	$marketplace   = get_post_meta( $deal_id, '_tb247_marketplace', true );
 	$affiliate_url = get_post_meta( $deal_id, '_tb247_affiliate_url', true );
+	$source_url    = get_post_meta( $deal_id, '_tb247_product_url', true );
 
 	// Xác thực domain đích trước khi render — chỉ cho phép marketplace đã
 	// phê duyệt (chặn open redirect/phishing nếu dữ liệu bot từng bị lỗi/giả
@@ -39,16 +40,31 @@ while ( have_posts() ) :
 		}
 	}
 
+	// §6: KHÔNG có affiliate_url (Rakuten /recommend không có `aff` — §4) ->
+	// CTA fallback về source_url (_tb247_product_url) thay vì ẩn hẳn nút mua.
+	// Vẫn qua đúng allowlist marketplace (KHÔNG tự tin URL đã lưu), KHÔNG bao
+	// giờ dùng source_url làm affiliate_url ở tầng dữ liệu — chỉ tính CTA href
+	// cục bộ tại đây, meta _tb247_affiliate_url không bị đụng tới.
+	$has_affiliate = (bool) $affiliate_url;
+
+	if ( ! $has_affiliate && $source_url && function_exists( 'tb247_validate_marketplace_url' ) ) {
+		$source_url = tb247_validate_marketplace_url( $source_url, $marketplace );
+	} elseif ( ! $has_affiliate ) {
+		$source_url = '';
+	}
+
+	$cta_url = $has_affiliate ? $affiliate_url : $source_url;
+
 	// '_tb247_in_stock' lưu '1' (còn hàng) / '0' (hết hàng) / '' (chưa có dữ
 	// liệu — deal cũ trước khi có tính năng này, hoặc bot chưa xác định được).
 	// Chỉ '0' mới ép ẩn giá; mọi trường hợp khác giữ nguyên hành vi cũ (theo giá).
 	$in_stock_meta = get_post_meta( $deal_id, '_tb247_in_stock', true );
 	$show_price    = ( '0' !== $in_stock_meta ) && ( $price > 0 );
 
-	// Tên sản phẩm và nút mua dùng chung 1 URL affiliate, cùng thuộc tính
-	// target/rel chuẩn hoá qua helper dùng chung, tham số hoá theo đúng sàn
-	// của deal (Amazon hiện tại, Rakuten/Yahoo sau này không cần sửa lại ở đây).
-	$marketplace_link_attrs = tb247_get_marketplace_link_attributes( $marketplace );
+	// Tên sản phẩm và nút mua dùng chung 1 URL CTA (affiliate nếu có, ngược lại
+	// source_url — §6), cùng thuộc tính target/rel chuẩn hoá qua helper dùng
+	// chung, tham số hoá theo đúng sàn + có/không phải affiliate thật của deal.
+	$marketplace_link_attrs = tb247_get_marketplace_link_attributes( $marketplace, $has_affiliate );
 
 	// Text nút mua theo đúng sàn qua helper dùng chung (test được độc lập).
 	$buy_button_label = tb247_get_marketplace_buy_button_label( $marketplace );
@@ -61,7 +77,7 @@ while ( have_posts() ) :
 					<div class="tb247-deal-media">
 						<img src="<?php echo esc_url( $image ); ?>" alt="<?php the_title_attribute(); ?>" />
 
-						<?php if ( $show_price || $affiliate_url ) : ?>
+						<?php if ( $show_price || $cta_url ) : ?>
 							<div class="tb247-deal-media-overlay" aria-hidden="true"></div>
 
 							<div class="tb247-deal-media-footer<?php echo $show_price ? '' : ' tb247-deal-media-footer--no-price'; ?>">
@@ -71,10 +87,10 @@ while ( have_posts() ) :
 									</div>
 								<?php endif; ?>
 
-								<?php if ( $affiliate_url ) : ?>
+								<?php if ( $cta_url ) : ?>
 									<a
 										class="tb247-buy-button-mini"
-										href="<?php echo esc_url( $affiliate_url ); ?>"
+										href="<?php echo esc_url( $cta_url ); ?>"
 										target="<?php echo esc_attr( $marketplace_link_attrs['target'] ); ?>"
 										rel="<?php echo esc_attr( $marketplace_link_attrs['rel'] ); ?>"
 									><?php echo esc_html( $buy_button_label ); ?></a>
@@ -86,8 +102,8 @@ while ( have_posts() ) :
 
 				<div class="tb247-deal-body">
 					<h1 class="tb247-deal-title">
-						<?php if ( $affiliate_url ) : ?>
-							<a href="<?php echo esc_url( $affiliate_url ); ?>" target="<?php echo esc_attr( $marketplace_link_attrs['target'] ); ?>" rel="<?php echo esc_attr( $marketplace_link_attrs['rel'] ); ?>">
+						<?php if ( $cta_url ) : ?>
+							<a href="<?php echo esc_url( $cta_url ); ?>" target="<?php echo esc_attr( $marketplace_link_attrs['target'] ); ?>" rel="<?php echo esc_attr( $marketplace_link_attrs['rel'] ); ?>">
 								<?php the_title(); ?>
 							</a>
 						<?php else : ?>

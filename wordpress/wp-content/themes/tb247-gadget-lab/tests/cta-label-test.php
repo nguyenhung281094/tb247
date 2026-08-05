@@ -54,6 +54,37 @@ check( 'Amazon rel không đổi = sponsored noopener noreferrer nofollow', 'spo
 check( 'Amazon target không đổi = _blank', '_blank' === $amazon_attrs['target'] );
 
 echo "\n########################################\n";
+echo "# CTA rel/target — §6 fallback source_url khi KHÔNG có affiliate (task /recommend url+aff)\n";
+echo "########################################\n";
+
+$rakuten_no_aff_attrs = tb247_get_marketplace_link_attributes( 'rakuten', false );
+check( 'Rakuten KHÔNG có affiliate -> rel KHÔNG có sponsored', false === strpos( $rakuten_no_aff_attrs['rel'], 'sponsored' ) );
+check( 'Rakuten KHÔNG có affiliate -> rel có nofollow', false !== strpos( $rakuten_no_aff_attrs['rel'], 'nofollow' ) );
+check( 'Rakuten KHÔNG có affiliate -> rel có noopener noreferrer', false !== strpos( $rakuten_no_aff_attrs['rel'], 'noopener' ) && false !== strpos( $rakuten_no_aff_attrs['rel'], 'noreferrer' ) );
+check( 'Rakuten KHÔNG có affiliate -> target vẫn _blank', '_blank' === $rakuten_no_aff_attrs['target'] );
+
+$rakuten_explicit_aff_attrs = tb247_get_marketplace_link_attributes( 'rakuten', true );
+check( 'Rakuten CÓ affiliate (truyền tường minh true) -> rel giữ nguyên sponsored noopener noreferrer', 'sponsored noopener noreferrer' === $rakuten_explicit_aff_attrs['rel'] );
+
+check( 'gọi không truyền $is_affiliate -> mặc định true (KHÔNG đổi hành vi cũ/regression)', 'sponsored noopener noreferrer' === tb247_get_marketplace_link_attributes( 'rakuten' )['rel'] );
+
+$amazon_no_aff_attrs = tb247_get_marketplace_link_attributes( 'amazon', false );
+check( 'Amazon $is_affiliate=false KHÔNG ảnh hưởng (Amazon luôn bắt buộc affiliate ở tầng validate, giữ rel cũ)', 'sponsored noopener noreferrer nofollow' === $amazon_no_aff_attrs['rel'] );
+
+echo "\n########################################\n";
+echo "# Structural check: single-deal.php — CTA fallback source_url khi không có affiliate (§6)\n";
+echo "########################################\n";
+
+$single_deal_source = file_get_contents( __DIR__ . '/../single-deal.php' );
+
+check( 'đọc _tb247_product_url làm nguồn fallback', strpos( $single_deal_source, "get_post_meta( \$deal_id, '_tb247_product_url', true )" ) !== false );
+check( '$cta_url = có affiliate ? affiliate_url : source_url (không hardcode ẩn CTA khi thiếu affiliate)', strpos( $single_deal_source, '$cta_url = $has_affiliate ? $affiliate_url : $source_url;' ) !== false );
+check( 'nút mua (buy-button-mini) dùng $cta_url, không còn dùng thẳng $affiliate_url (đã fallback)', strpos( $single_deal_source, 'href="<?php echo esc_url( $cta_url ); ?>"' ) !== false );
+check( 'rel/target tính theo $has_affiliate (truyền vào tb247_get_marketplace_link_attributes)', strpos( $single_deal_source, 'tb247_get_marketplace_link_attributes( $marketplace, $has_affiliate )' ) !== false );
+check( 'KHÔNG còn điều kiện hiển thị CTA chỉ dựa vào $affiliate_url đơn thuần (đã đổi sang $cta_url — Test: CTA không bị ẩn khi thiếu affiliate)', strpos( $single_deal_source, 'if ( $affiliate_url ) :' ) === false );
+check( 'source_url KHÔNG bao giờ được gán ngược vào $affiliate_url (2 biến độc lập)', strpos( $single_deal_source, '$affiliate_url = $source_url' ) === false && strpos( $single_deal_source, '$affiliate_url = $cta_url' ) === false );
+
+echo "\n########################################\n";
 echo "TỔNG KẾT: $pass PASS, $fail FAIL\n";
 echo "########################################\n";
 

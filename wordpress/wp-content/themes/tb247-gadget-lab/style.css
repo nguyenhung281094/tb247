@@ -556,6 +556,30 @@ h3 {
 	margin: 0;
 }
 
+/* 更新日 (§9): cùng hàng với JAN, JAN trái/更新日 phải — chỉ render khi PHP có
+   giá trị thật (tb247_get_recommended_updated_display()), không CSS ẩn/hiện.
+   flex-wrap để mobile quá hẹp (title dài + ngày dài) tự xuống dòng thay vì
+   tràn/đè lên nhau, không phá chiều cao card đều giữa các item khác. */
+.tb247-deal-grid-meta-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px 10px;
+	flex-wrap: wrap;
+	margin-top: 2px;
+}
+
+.tb247-deal-grid-meta-row .tb247-deal-grid-jan {
+	margin: 0;
+}
+
+.tb247-deal-grid-updated {
+	font-size: 10px;
+	color: var(--tb-muted);
+	white-space: nowrap;
+	margin-left: auto;
+}
+
 @media ( min-width: 480px ) {
 	.tb247-deal-grid {
 		grid-template-columns: repeat( 2, 1fr );

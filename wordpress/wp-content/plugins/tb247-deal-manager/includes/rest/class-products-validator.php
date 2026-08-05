@@ -89,7 +89,12 @@ class TB247_DM_Products_Validator {
 		$data['price'] = self::validate_positive_price( $payload, $errors );
 		$data['image'] = self::validate_url_field( $payload, 'image', __( 'Image must be a valid http or https URL.', 'tb247-deal-manager' ), true, $errors );
 
-		$data['affiliate_url'] = self::validate_affiliate_url_field( $payload, 'affiliate_url', $marketplace, $errors );
+		// affiliate_url Rakuten KHÔNG bắt buộc (§4: /recommend Rakuten find-or-create
+		// cho phép tạo deal không có affiliate URL, giữ null/rỗng — KHÔNG lưu
+		// source_url giả vào affiliate_url). Nếu CÓ gửi lên, vẫn validate nghiêm
+		// ngặt y hệt trước (allowlist host + scid/sc2id) — required=false chỉ bỏ
+		// qua trường hợp rỗng, không nới lỏng bất kỳ rule nào khác.
+		$data['affiliate_url'] = self::validate_affiliate_url_field( $payload, 'affiliate_url', $marketplace, false, $errors );
 		$data['source_url']    = self::validate_marketplace_url_field( $payload, 'source_url', $marketplace, false, $errors );
 
 		$data['in_stock'] = self::validate_in_stock( $payload );
@@ -178,18 +183,21 @@ class TB247_DM_Products_Validator {
 	 * @param array                $payload     Payload thô.
 	 * @param string               $field       Tên field trong payload.
 	 * @param string               $marketplace Slug sàn.
+	 * @param bool                 $required    Field có bắt buộc không (Rakuten §4: false — rỗng hợp lệ, không lỗi).
 	 * @param array<string,string> $errors      Mảng lỗi, truyền theo tham chiếu.
 	 * @return string
 	 */
-	private static function validate_affiliate_url_field( array $payload, $field, $marketplace, array &$errors ) {
+	private static function validate_affiliate_url_field( array $payload, $field, $marketplace, $required, array &$errors ) {
 		$raw = isset( $payload[ $field ] ) ? trim( (string) $payload[ $field ] ) : '';
 
 		if ( '' === $raw ) {
-			$errors[ $field ] = sprintf(
-				/* translators: %s: field name */
-				__( '%s is required and must be a valid, approved marketplace affiliate URL.', 'tb247-deal-manager' ),
-				$field
-			);
+			if ( $required ) {
+				$errors[ $field ] = sprintf(
+					/* translators: %s: field name */
+					__( '%s is required and must be a valid, approved marketplace affiliate URL.', 'tb247-deal-manager' ),
+					$field
+				);
+			}
 			return '';
 		}
 

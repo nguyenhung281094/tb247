@@ -290,16 +290,32 @@ function tb247_marketplace_label( $marketplace ) {
  * Amazon Associates track qua tham số ?tag= gắn thẳng trong URL, không dựa
  * vào HTTP Referer header. Sàn khác dùng rel mặc định không có nofollow.
  *
- * @param string $marketplace Slug sàn (vd: "amazon", "rakuten"). Rỗng = amazon.
+ * $is_affiliate (§6) phân biệt CTA trỏ affiliate_url thật hay fallback về
+ * source_url thường: có affiliate -> giữ "sponsored" (đúng chuẩn quảng cáo có
+ * hoa hồng); KHÔNG có affiliate (fallback source_url) -> KHÔNG gắn "sponsored"
+ * (link thường, chưa chắc có hoa hồng) nhưng vẫn thêm "nofollow" (an toàn SEO
+ * mặc định cho link ngoài chưa xác nhận là affiliate). Amazon hiện tại luôn có
+ * affiliate_url bắt buộc ở tầng validate nên $is_affiliate không ảnh hưởng gì
+ * tới nhánh Amazon — giữ nguyên hành vi production.
+ *
+ * @param string $marketplace  Slug sàn (vd: "amazon", "rakuten"). Rỗng = amazon.
+ * @param bool   $is_affiliate CTA có đang trỏ tới affiliate_url thật không (true mặc định, giữ hành vi cũ khi gọi không truyền).
  * @return array{target: string, rel: string}
  */
-function tb247_get_marketplace_link_attributes( $marketplace = 'amazon' ) {
+function tb247_get_marketplace_link_attributes( $marketplace = 'amazon', $is_affiliate = true ) {
 	$marketplace = sanitize_key( (string) $marketplace );
 
 	if ( '' === $marketplace || 'amazon' === $marketplace ) {
 		return array(
 			'target' => '_blank',
 			'rel'    => 'sponsored noopener noreferrer nofollow',
+		);
+	}
+
+	if ( ! $is_affiliate ) {
+		return array(
+			'target' => '_blank',
+			'rel'    => 'noopener noreferrer nofollow',
 		);
 	}
 
@@ -329,9 +345,38 @@ function tb247_get_marketplace_buy_button_label( $marketplace = 'amazon' ) {
 }
 
 /**
+ * Định dạng 更新日 hiển thị trên card (§9) từ meta _tb247_recommended_updated_at
+ * (mysql datetime) sang "2026年8月5日". Trả về CHUỖI RỖNG nếu meta chưa tồn
+ * tại/rỗng/không parse được — KHÔNG BAO GIỜ bịa ngày giả, card gọi hàm này chỉ
+ * hiện 更新日 khi giá trị trả về khác rỗng.
+ *
+ * @param int $deal_id ID deal.
+ * @return string
+ */
+function tb247_get_recommended_updated_display( $deal_id ) {
+	$raw = trim( (string) get_post_meta( $deal_id, '_tb247_recommended_updated_at', true ) );
+
+	if ( '' === $raw ) {
+		return '';
+	}
+
+	$timestamp = strtotime( $raw );
+
+	if ( false === $timestamp ) {
+		return '';
+	}
+
+	return date_i18n( 'Y年n月j日', $timestamp );
+}
+
+/**
  * In 1 card sản phẩm cho trang danh sách (おすすめ商品/随時セール情報). Dùng chung
  * quy tắc ẩn giá khi hết hàng như single-deal.php: chỉ '0' (_tb247_in_stock)
  * mới ép ẩn giá, mọi giá trị khác giữ hành vi cũ (theo giá > 0).
+ *
+ * §9: hàng cuối card thêm 更新日 (góc dưới-phải, cùng hàng với JAN góc dưới-
+ * trái) — CHỈ hiện khi có meta thật (không hiện ngày giả, không hiện 掲載日).
+ * badge/ảnh/tên/giá/JAN giữ nguyên 100% — không đổi class/markup của các phần đó.
  *
  * @param WP_Post $deal Deal post.
  */
@@ -345,6 +390,7 @@ function tb247_the_deal_card( $deal ) {
 	$in_stock_meta = get_post_meta( $deal_id, '_tb247_in_stock', true );
 	$show_price    = ( '0' !== $in_stock_meta ) && ( $price > 0 );
 	$landing_url   = home_url( '/d/' . rawurlencode( $code ) . '/' );
+	$updated_at    = tb247_get_recommended_updated_display( $deal_id );
 	?>
 	<a class="tb247-deal-grid-card" href="<?php echo esc_url( $landing_url ); ?>">
 		<div class="tb247-deal-grid-media">
@@ -361,8 +407,16 @@ function tb247_the_deal_card( $deal ) {
 				<p class="tb247-deal-grid-price">&yen;<?php echo esc_html( number_format_i18n( $price ) ); ?></p>
 			<?php endif; ?>
 
-			<?php if ( $jan ) : ?>
-				<p class="tb247-deal-grid-jan">JAN: <?php echo esc_html( $jan ); ?></p>
+			<?php if ( $jan || $updated_at ) : ?>
+				<div class="tb247-deal-grid-meta-row">
+					<?php if ( $jan ) : ?>
+						<span class="tb247-deal-grid-jan">JAN: <?php echo esc_html( $jan ); ?></span>
+					<?php endif; ?>
+
+					<?php if ( $updated_at ) : ?>
+						<span class="tb247-deal-grid-updated">更新日：<?php echo esc_html( $updated_at ); ?></span>
+					<?php endif; ?>
+				</div>
 			<?php endif; ?>
 		</div>
 	</a>
