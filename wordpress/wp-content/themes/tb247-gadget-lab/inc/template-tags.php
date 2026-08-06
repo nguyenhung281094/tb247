@@ -339,6 +339,7 @@ function tb247_get_marketplace_buy_button_label( $marketplace = 'amazon' ) {
 	$labels = array(
 		'amazon'  => 'Amazon',
 		'rakuten' => 'RAKUTEN',
+		'yahoo'   => 'Yahoo!ショッピング',
 	);
 
 	return isset( $labels[ $marketplace ] ) ? $labels[ $marketplace ] : 'Amazon';

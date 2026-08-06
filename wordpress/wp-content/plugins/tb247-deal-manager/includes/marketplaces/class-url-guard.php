@@ -61,6 +61,10 @@ class TB247_DM_Url_Guard {
 				'shopping.yahoo.co.jp',
 				'store.shopping.yahoo.co.jp',
 				'ck.jp.ap.valuecommerce.com',
+				// Short affiliate link host chính thức của Yahoo (yahoo.jp/{token})
+				// — EXACT host, không phải *.yahoo.jp (xem AFFILIATE_SHORT_HOSTS_MAP
+				// bên dưới cho phần validate riêng affiliate_url).
+				'yahoo.jp',
 			),
 		);
 	}
@@ -129,7 +133,9 @@ class TB247_DM_Url_Guard {
 	/**
 	 * Hostname "short affiliate URL" của Rakuten — link tracking/rút gọn chính
 	 * thức, không cần affiliate query parameter để được chấp nhận làm
-	 * affiliate_url.
+	 * affiliate_url. Giữ nguyên tên hằng số cũ (không đổi để không phá
+	 * backward-compat) — nguồn sự thật thật sự giờ là
+	 * AFFILIATE_SHORT_HOSTS_MAP bên dưới, dùng chung cho mọi sàn.
 	 */
 	const RAKUTEN_SHORT_AFFILIATE_HOSTS = array(
 		'r10.to',
@@ -147,15 +153,63 @@ class TB247_DM_Url_Guard {
 	);
 
 	/**
+	 * Host "short affiliate URL" theo từng sàn — EXACT host, không wildcard.
+	 * Rakuten dùng lại đúng RAKUTEN_SHORT_AFFILIATE_HOSTS (không định nghĩa
+	 * lại) để 2 hằng số không bao giờ lệch nhau.
+	 *
+	 * @return array<string, string[]>
+	 */
+	private static function get_affiliate_short_hosts_map() {
+		return array(
+			'rakuten' => self::RAKUTEN_SHORT_AFFILIATE_HOSTS,
+			// yahoo.jp: short link chính thức của Yahoo!ショッピング (vd
+			// https://yahoo.jp/{token}) — EXACT host, KHÔNG *.yahoo.jp.
+			'yahoo'   => array( 'yahoo.jp' ),
+		);
+	}
+
+	/**
+	 * Host "full product URL dùng làm affiliate_url" theo từng sàn — bắt buộc
+	 * kèm ít nhất 1 query parameter trong get_affiliate_query_params_map()
+	 * mới được chấp nhận (tránh nhận nhầm URL sản phẩm thường).
+	 *
+	 * @return array<string, string[]>
+	 */
+	private static function get_affiliate_full_hosts_map() {
+		return array(
+			'rakuten' => array( 'item.rakuten.co.jp', 'biccamera.rakuten.co.jp' ),
+			// store.shopping.yahoo.co.jp CHỈ — KHÔNG bao gồm shopping.yahoo.co.jp
+			// trần (host đó không theo cấu trúc {shop_code}/{item_code}.html
+			// nên không phải "full product URL" theo nghĩa affiliate ở đây).
+			'yahoo'   => array( 'store.shopping.yahoo.co.jp' ),
+		);
+	}
+
+	/**
+	 * Tên query parameter affiliate hợp lệ cho "full product URL" theo từng
+	 * sàn — chỉ cần 1 trong danh sách có giá trị không rỗng.
+	 *
+	 * @return array<string, string[]>
+	 */
+	private static function get_affiliate_query_params_map() {
+		return array(
+			'rakuten' => self::RAKUTEN_AFFILIATE_QUERY_PARAMS,
+			'yahoo'   => array( 'sc_e' ),
+		);
+	}
+
+	/**
 	 * Xác thực 1 URL dùng làm affiliate_url — khác validate_marketplace_url()
-	 * (dùng chung cho cả source_url) ở chỗ: với Rakuten, nếu host là 1 full
-	 * product host (không phải short affiliate host), bắt buộc phải có ít
-	 * nhất 1 trong RAKUTEN_AFFILIATE_QUERY_PARAMS với giá trị không rỗng —
-	 * tránh nhận nhầm 1 URL sản phẩm thường (không mang affiliate tag) làm
-	 * affiliate_url.
+	 * (dùng chung cho cả source_url) ở chỗ: với sàn có "full product URL
+	 * dùng làm affiliate" (Rakuten, Yahoo), nếu host KHÔNG phải short
+	 * affiliate host, bắt buộc phải có ít nhất 1 affiliate query parameter
+	 * của đúng sàn đó với giá trị không rỗng — tránh nhận nhầm 1 URL sản
+	 * phẩm thường (không mang affiliate tag) làm affiliate_url. Amazon (và
+	 * bất kỳ sàn nào không có trong 2 map trên) giữ nguyên hành vi cũ: chỉ
+	 * cần qua validate_marketplace_url() là đủ.
 	 *
 	 * @param string $url         URL thô cần kiểm tra.
-	 * @param string $marketplace Slug sàn (vd: "rakuten").
+	 * @param string $marketplace Slug sàn (vd: "rakuten", "yahoo").
 	 * @return array{url: string|null, reason: string|null}
 	 */
 	public static function validate_affiliate_url( $url, $marketplace ) {
@@ -168,9 +222,14 @@ class TB247_DM_Url_Guard {
 			);
 		}
 
-		$marketplace_key = sanitize_key( (string) $marketplace );
+		$marketplace_key   = sanitize_key( (string) $marketplace );
+		$short_hosts_map    = self::get_affiliate_short_hosts_map();
+		$full_hosts_map     = self::get_affiliate_full_hosts_map();
+		$query_params_map   = self::get_affiliate_query_params_map();
 
-		if ( 'rakuten' !== $marketplace_key ) {
+		// Sàn không có quy tắc affiliate riêng (vd Amazon) — validate_marketplace_url()
+		// đã đủ, giữ nguyên hành vi cũ.
+		if ( ! isset( $full_hosts_map[ $marketplace_key ] ) && ! isset( $short_hosts_map[ $marketplace_key ] ) ) {
 			return array(
 				'url'    => $validated,
 				'reason' => null,
@@ -180,22 +239,39 @@ class TB247_DM_Url_Guard {
 		$parts = wp_parse_url( $validated );
 		$host  = strtolower( rtrim( (string) ( $parts['host'] ?? '' ), '.' ) );
 
-		if ( in_array( $host, self::RAKUTEN_SHORT_AFFILIATE_HOSTS, true ) ) {
+		$short_hosts = $short_hosts_map[ $marketplace_key ] ?? array();
+
+		if ( in_array( $host, $short_hosts, true ) ) {
 			return array(
 				'url'    => $validated,
 				'reason' => null,
 			);
 		}
 
-		// Full Rakuten product host — bắt buộc có ít nhất 1 affiliate query
-		// parameter không rỗng, nếu không thì đây chỉ là URL sản phẩm thường.
+		$full_hosts = $full_hosts_map[ $marketplace_key ] ?? array();
+
+		if ( ! in_array( $host, $full_hosts, true ) ) {
+			// Host hợp lệ theo validate_marketplace_url() (vd shopping.yahoo.co.jp
+			// trần) nhưng KHÔNG nằm trong danh sách host được phép dùng làm
+			// affiliate_url — reject rõ ràng thay vì chấp nhận mơ hồ.
+			return array(
+				'url'    => null,
+				'reason' => 'invalid_affiliate_host',
+			);
+		}
+
+		// Full product host — bắt buộc có ít nhất 1 affiliate query parameter
+		// của ĐÚNG sàn đó, không rỗng — nếu không thì đây chỉ là URL sản
+		// phẩm thường.
 		$query_args = array();
 
 		if ( ! empty( $parts['query'] ) ) {
 			parse_str( $parts['query'], $query_args );
 		}
 
-		foreach ( self::RAKUTEN_AFFILIATE_QUERY_PARAMS as $param_name ) {
+		$query_params = $query_params_map[ $marketplace_key ] ?? array();
+
+		foreach ( $query_params as $param_name ) {
 			if ( isset( $query_args[ $param_name ] ) && '' !== trim( (string) $query_args[ $param_name ] ) ) {
 				return array(
 					'url'    => $validated,

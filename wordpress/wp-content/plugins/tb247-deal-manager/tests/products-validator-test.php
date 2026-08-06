@@ -79,6 +79,7 @@ require __DIR__ . '/../includes/marketplaces/class-url-guard.php';
 require __DIR__ . '/../includes/marketplaces/interface-marketplace.php';
 require __DIR__ . '/../includes/marketplaces/class-amazon-marketplace.php';
 require __DIR__ . '/../includes/marketplaces/class-rakuten-marketplace.php';
+require __DIR__ . '/../includes/marketplaces/class-yahoo-marketplace.php';
 require __DIR__ . '/../includes/rest/class-products-validator.php';
 
 $pass = 0;
@@ -110,6 +111,18 @@ $valid_rakuten_payload = array(
 	'image'         => 'https://thumbnail.image.rakuten.co.jp/example.jpg',
 	'affiliate_url' => 'https://hb.afl.rakuten.co.jp/hgc/example',
 	'source_url'    => 'https://item.rakuten.co.jp/example-shop/example-item/',
+	'in_stock'      => true,
+);
+
+$valid_yahoo_payload = array(
+	'shop_code'     => 'fixture-shop',
+	'item_code'     => 'fixture-item-001',
+	'jan'           => '4988602180305',
+	'title'         => 'Sample Yahoo Product',
+	'price'         => 39800,
+	'image'         => 'https://item-shopping.c.yimg.jp/i/g/fixture-item-001',
+	'affiliate_url' => 'https://yahoo.jp/fixtureTok',
+	'source_url'    => 'https://store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html',
 	'in_stock'      => true,
 );
 
@@ -353,6 +366,83 @@ vcheck(
 );
 vcheck( 'validate() reject khi thiếu shop_code/item_code', is_wp_error( $rakuten_marketplace->validate( array( 'title' => 'x' ) ) ) );
 vcheck( 'validate() accept khi đủ shop_code/item_code/title', true === $rakuten_marketplace->validate( array( 'shop_code' => 'a', 'item_code' => 'b', 'title' => 'x' ) ) );
+
+echo "\n########################################\n";
+echo "# F. YAHOO — payload hợp lệ phải PASS (validate() generic cho mọi marketplace != amazon)\n";
+echo "########################################\n";
+$yr = TB247_DM_Products_Validator::validate( $valid_yahoo_payload, 'yahoo' );
+vcheck( 'payload Yahoo hợp lệ -> valid=true', $yr['valid'] );
+vcheck( 'shop_code/item_code giữ nguyên', 'fixture-shop' === $yr['data']['shop_code'] && 'fixture-item-001' === $yr['data']['item_code'] );
+vcheck( 'affiliate_url qua allowlist Yahoo, giữ nguyên (yahoo.jp short)', $yr['data']['affiliate_url'] === $valid_yahoo_payload['affiliate_url'] );
+vcheck( 'source_url qua allowlist Yahoo, giữ nguyên (store.shopping.yahoo.co.jp)', $yr['data']['source_url'] === $valid_yahoo_payload['source_url'] );
+
+echo "\n########################################\n";
+echo "# G. YAHOO — payload không hợp lệ phải REJECT\n";
+echo "########################################\n";
+
+$yahoo_missing_shop = $valid_yahoo_payload;
+unset( $yahoo_missing_shop['shop_code'] );
+vcheck( 'thiếu shop_code -> invalid', false === TB247_DM_Products_Validator::validate( $yahoo_missing_shop, 'yahoo' )['valid'] );
+
+$yahoo_price_zero = $valid_yahoo_payload;
+$yahoo_price_zero['price'] = 0;
+vcheck( 'price = 0 -> invalid (cùng quy tắc positive-price với Rakuten)', false === TB247_DM_Products_Validator::validate( $yahoo_price_zero, 'yahoo' )['valid'] );
+
+$yahoo_amazon_aff = $valid_yahoo_payload;
+$yahoo_amazon_aff['affiliate_url'] = 'https://www.amazon.co.jp/dp/B0GWHBFNGG?tag=tb247fun-22';
+vcheck( 'affiliate_url Amazon trong payload Yahoo -> invalid (sai allowlist)', false === TB247_DM_Products_Validator::validate( $yahoo_amazon_aff, 'yahoo' )['valid'] );
+
+$yahoo_rakuten_aff = $valid_yahoo_payload;
+$yahoo_rakuten_aff['affiliate_url'] = 'https://a.r10.to/fixture123';
+vcheck( 'affiliate_url Rakuten (a.r10.to) trong payload Yahoo -> invalid (không dùng chung short host giữa sàn)', false === TB247_DM_Products_Validator::validate( $yahoo_rakuten_aff, 'yahoo' )['valid'] );
+
+$yahoo_source_outside = $valid_yahoo_payload;
+$yahoo_source_outside['source_url'] = 'https://evil.example/product';
+vcheck( 'source_url ngoài Yahoo -> invalid', false === TB247_DM_Products_Validator::validate( $yahoo_source_outside, 'yahoo' )['valid'] );
+
+// §3 handoff (task Yahoo parity): affiliate_url Yahoo optional ở tầng
+// WordPress (giống Rakuten §4 trước đó) — /recommend Yahoo cho phép tạo deal
+// chưa có affiliate URL, rỗng/null, KHÔNG lỗi validate.
+$yahoo_missing_affiliate = $valid_yahoo_payload;
+unset( $yahoo_missing_affiliate['affiliate_url'] );
+$yahoo_missing_affiliate_result = TB247_DM_Products_Validator::validate( $yahoo_missing_affiliate, 'yahoo' );
+vcheck( 'thiếu affiliate_url (optional) -> vẫn valid', true === $yahoo_missing_affiliate_result['valid'] );
+vcheck( 'thiếu affiliate_url -> data.affiliate_url rỗng (KHÔNG bịa/dùng source_url thay thế)', '' === $yahoo_missing_affiliate_result['data']['affiliate_url'] );
+
+$yahoo_empty_affiliate = $valid_yahoo_payload;
+$yahoo_empty_affiliate['affiliate_url'] = '';
+vcheck( 'affiliate_url rỗng tường minh -> vẫn valid', true === TB247_DM_Products_Validator::validate( $yahoo_empty_affiliate, 'yahoo' )['valid'] );
+
+echo "\n########################################\n";
+echo "# H. YAHOO — full affiliate product URL (sc_e) qua /products validator — §11/§15 handoff\n";
+echo "########################################\n";
+
+$yahoo_full_aff = $valid_yahoo_payload;
+$yahoo_full_aff['affiliate_url'] = 'https://store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html?sc_e=fixture_aff_token';
+$yahoo_full_aff_result           = TB247_DM_Products_Validator::validate( $yahoo_full_aff, 'yahoo' );
+vcheck( 'affiliate_url full product URL + sc_e -> valid=true', $yahoo_full_aff_result['valid'] );
+vcheck( 'affiliate_url full giữ nguyên query y hệt (không reorder/xoá sc_e)', $yahoo_full_aff_result['data']['affiliate_url'] === $yahoo_full_aff['affiliate_url'] );
+
+$yahoo_full_aff_missing_sce = $valid_yahoo_payload;
+$yahoo_full_aff_missing_sce['affiliate_url'] = 'https://store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html';
+vcheck( 'affiliate_url full product URL KHÔNG sc_e -> invalid (chỉ là URL sản phẩm thường)', false === TB247_DM_Products_Validator::validate( $yahoo_full_aff_missing_sce, 'yahoo' )['valid'] );
+
+echo "\n########################################\n";
+echo "# I. TB247_DM_Yahoo_Marketplace\n";
+echo "########################################\n";
+$yahoo_marketplace = new TB247_DM_Yahoo_Marketplace();
+vcheck( 'get_slug() = yahoo', 'yahoo' === $yahoo_marketplace->get_slug() );
+vcheck( 'get_buy_button_label() = Yahoo!ショッピング', 'Yahoo!ショッピング' === $yahoo_marketplace->get_buy_button_label() );
+vcheck(
+	'get_code() ghép shop_code-item_code, viết hoa (CÙNG công thức Rakuten)',
+	'FIXTURE-SHOP-FIXTURE-ITEM-001' === $yahoo_marketplace->get_code( array( 'shop_code' => 'fixture-shop', 'item_code' => 'fixture-item-001' ) )
+);
+vcheck( 'validate() reject khi thiếu shop_code/item_code', is_wp_error( $yahoo_marketplace->validate( array( 'title' => 'x' ) ) ) );
+vcheck( 'validate() accept khi đủ shop_code/item_code/title', true === $yahoo_marketplace->validate( array( 'shop_code' => 'a', 'item_code' => 'b', 'title' => 'x' ) ) );
+vcheck(
+	'Yahoo get_code() và Rakuten get_code() cho CÙNG shop/item -> giá trị GIỐNG NHAU (đúng — code chỉ khác biệt nhờ _tb247_marketplace riêng, không phải nhờ tự thân code)',
+	$yahoo_marketplace->get_code( array( 'shop_code' => 'a', 'item_code' => 'b' ) ) === $rakuten_marketplace->get_code( array( 'shop_code' => 'a', 'item_code' => 'b' ) )
+);
 
 echo "\n########################################\n";
 echo "TỔNG KẾT: $pass PASS, $fail FAIL\n";

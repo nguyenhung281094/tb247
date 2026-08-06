@@ -40,6 +40,7 @@ check( 'Amazon CTA text không đổi = Amazon', 'Amazon' === tb247_get_marketpl
 check( 'marketplace rỗng -> fallback Amazon (giữ hành vi cũ)', 'Amazon' === tb247_get_marketplace_buy_button_label( '' ) );
 check( 'marketplace lạ -> fallback Amazon (không render text rỗng/sai)', 'Amazon' === tb247_get_marketplace_buy_button_label( 'ebay' ) );
 check( 'gọi không tham số -> mặc định Amazon', 'Amazon' === tb247_get_marketplace_buy_button_label() );
+check( 'Yahoo CTA text = Yahoo!ショッピング (§14 task Yahoo parity)', 'Yahoo!ショッピング' === tb247_get_marketplace_buy_button_label( 'yahoo' ) );
 
 echo "\n########################################\n";
 echo "# CTA rel/target (regression — không đổi so với các task trước)\n";
@@ -70,6 +71,22 @@ check( 'gọi không truyền $is_affiliate -> mặc định true (KHÔNG đổi
 
 $amazon_no_aff_attrs = tb247_get_marketplace_link_attributes( 'amazon', false );
 check( 'Amazon $is_affiliate=false KHÔNG ảnh hưởng (Amazon luôn bắt buộc affiliate ở tầng validate, giữ rel cũ)', 'sponsored noopener noreferrer nofollow' === $amazon_no_aff_attrs['rel'] );
+
+echo "\n########################################\n";
+echo "# CTA rel/target Yahoo — §14 task Yahoo parity (cùng quy tắc generic non-Amazon với Rakuten)\n";
+echo "########################################\n";
+
+$yahoo_aff_attrs = tb247_get_marketplace_link_attributes( 'yahoo', true );
+check( 'Yahoo CÓ affiliate -> rel = sponsored noopener noreferrer', 'sponsored noopener noreferrer' === $yahoo_aff_attrs['rel'] );
+check( 'Yahoo CÓ affiliate -> target = _blank', '_blank' === $yahoo_aff_attrs['target'] );
+check( 'Yahoo gọi không truyền $is_affiliate -> mặc định true (sponsored)', 'sponsored noopener noreferrer' === tb247_get_marketplace_link_attributes( 'yahoo' )['rel'] );
+
+$yahoo_no_aff_attrs = tb247_get_marketplace_link_attributes( 'yahoo', false );
+check( 'Yahoo KHÔNG có affiliate -> rel KHÔNG có sponsored', false === strpos( $yahoo_no_aff_attrs['rel'], 'sponsored' ) );
+check( 'Yahoo KHÔNG có affiliate -> rel có nofollow', false !== strpos( $yahoo_no_aff_attrs['rel'], 'nofollow' ) );
+check( 'Yahoo KHÔNG có affiliate -> rel có noopener noreferrer', false !== strpos( $yahoo_no_aff_attrs['rel'], 'noopener' ) && false !== strpos( $yahoo_no_aff_attrs['rel'], 'noreferrer' ) );
+check( 'Yahoo KHÔNG có affiliate -> target vẫn _blank', '_blank' === $yahoo_no_aff_attrs['target'] );
+check( 'Yahoo no-aff và Rakuten no-aff cho CÙNG rel (logic generic non-Amazon dùng chung, không hardcode riêng Rakuten)', $yahoo_no_aff_attrs['rel'] === $rakuten_no_aff_attrs['rel'] );
 
 echo "\n########################################\n";
 echo "# Structural check: single-deal.php — CTA fallback source_url khi không có affiliate (§6)\n";

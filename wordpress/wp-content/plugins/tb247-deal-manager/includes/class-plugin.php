@@ -27,12 +27,12 @@ class TB247_DM_Plugin {
 	}
 
 	/**
-	 * Đăng ký các marketplace được hỗ trợ. Yahoo sau này chỉ cần thêm 1
-	 * dòng register() ở đây.
+	 * Đăng ký các marketplace được hỗ trợ.
 	 */
 	public static function register_marketplaces() {
 		TB247_DM_Marketplace_Registry::register( new TB247_DM_Amazon_Marketplace() );
 		TB247_DM_Marketplace_Registry::register( new TB247_DM_Rakuten_Marketplace() );
+		TB247_DM_Marketplace_Registry::register( new TB247_DM_Yahoo_Marketplace() );
 	}
 
 	/**

@@ -226,6 +226,114 @@ $aff_malicious_3 = TB247_DM_Url_Guard::validate_affiliate_url( 'https://item.rak
 check_bool( 'item.rakuten.co.jp.evil.example -> FAIL (host không exact match)', null === $aff_malicious_3['url'] );
 
 echo "\n########################################\n";
+echo "# I. YAHOO — validate_marketplace_url() (source URL)\n";
+echo "########################################\n";
+
+check( 'yahoo store.shopping (product URL chuẩn)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html', 'yahoo' ), true );
+check( 'yahoo shopping trần', TB247_DM_Url_Guard::validate_marketplace_url( 'https://shopping.yahoo.co.jp/products/fixture', 'yahoo' ), true );
+check( 'yahoo.jp (short link) hợp lệ như source URL nếu ai đó truyền vào', TB247_DM_Url_Guard::validate_marketplace_url( 'https://yahoo.jp/fixtureTok', 'yahoo' ), true );
+check( 'store.shopping.yahoo.co.jp.evil.example', TB247_DM_Url_Guard::validate_marketplace_url( 'https://store.shopping.yahoo.co.jp.evil.example/fixture-shop/fixture-item.html', 'yahoo' ), false );
+check( 'evil.yahoo.jp (subdomain giả — không nằm allowlist exact)', TB247_DM_Url_Guard::validate_marketplace_url( 'https://evil.yahoo.jp/x', 'yahoo' ), false );
+check( 'yahoo.jp.evil.example', TB247_DM_Url_Guard::validate_marketplace_url( 'https://yahoo.jp.evil.example/x', 'yahoo' ), false );
+check( 'fake-yahoo.jp', TB247_DM_Url_Guard::validate_marketplace_url( 'https://fake-yahoo.jp/x', 'yahoo' ), false );
+check( 'http (không phải https)', TB247_DM_Url_Guard::validate_marketplace_url( 'http://store.shopping.yahoo.co.jp/fixture-shop/fixture-item.html', 'yahoo' ), false );
+check( 'protocol-relative', TB247_DM_Url_Guard::validate_marketplace_url( '//store.shopping.yahoo.co.jp/fixture-shop/fixture-item.html', 'yahoo' ), false );
+check( 'userinfo trong URL', TB247_DM_Url_Guard::validate_marketplace_url( 'https://user:pass@store.shopping.yahoo.co.jp/fixture-shop/fixture-item.html', 'yahoo' ), false );
+check( 'CRLF encoded', TB247_DM_Url_Guard::validate_marketplace_url( 'https://store.shopping.yahoo.co.jp/%0d%0aLocation:https://evil.example/', 'yahoo' ), false );
+check( 'javascript scheme', TB247_DM_Url_Guard::validate_marketplace_url( 'javascript:alert(1)', 'yahoo' ), false );
+check( 'data scheme', TB247_DM_Url_Guard::validate_marketplace_url( 'data:text/html,test', 'yahoo' ), false );
+check( 'file scheme', TB247_DM_Url_Guard::validate_marketplace_url( 'file:///etc/passwd', 'yahoo' ), false );
+check( 'ftp scheme', TB247_DM_Url_Guard::validate_marketplace_url( 'ftp://store.shopping.yahoo.co.jp/', 'yahoo' ), false );
+check( 'rỗng', TB247_DM_Url_Guard::validate_marketplace_url( '', 'yahoo' ), false );
+check( 'Amazon URL validate dưới marketplace yahoo', TB247_DM_Url_Guard::validate_marketplace_url( 'https://www.amazon.co.jp/dp/B0GWHBFNGG', 'yahoo' ), false );
+check( 'Yahoo URL validate dưới marketplace amazon', TB247_DM_Url_Guard::validate_marketplace_url( 'https://store.shopping.yahoo.co.jp/fixture-shop/fixture-item.html', 'amazon' ), false );
+check( 'Rakuten URL validate dưới marketplace yahoo', TB247_DM_Url_Guard::validate_marketplace_url( 'https://item.rakuten.co.jp/fixture-shop/fixture-item/', 'yahoo' ), false );
+
+echo "\n########################################\n";
+echo "# J. YAHOO — chuẩn hoá hostname nhất quán\n";
+echo "########################################\n";
+check( 'trailing-dot hostname hợp lệ', TB247_DM_Url_Guard::validate_marketplace_url( 'https://store.shopping.yahoo.co.jp./fixture-shop/fixture-item.html', 'yahoo' ), true );
+check( 'mixed-case hostname', TB247_DM_Url_Guard::validate_marketplace_url( 'https://Store.Shopping.Yahoo.Co.Jp/fixture-shop/fixture-item.html', 'yahoo' ), true );
+
+echo "\n########################################\n";
+echo "# K. YAHOO — validate_affiliate_url() (short vs full affiliate URL) — §11 handoff\n";
+echo "########################################\n";
+
+$yahoo_aff_short = TB247_DM_Url_Guard::validate_affiliate_url( 'https://yahoo.jp/fixtureTok', 'yahoo' );
+check_bool( 'yahoo.jp (short) -> PASS', null !== $yahoo_aff_short['url'] );
+
+$yahoo_aff_full = TB247_DM_Url_Guard::validate_affiliate_url( 'https://store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html?sc_e=fixture_aff_token', 'yahoo' );
+check_bool( 'store.shopping.yahoo.co.jp + sc_e (full) -> PASS', null !== $yahoo_aff_full['url'] );
+check_bool( 'full affiliate URL giữ nguyên query y hệt (không reorder/xoá)', $yahoo_aff_full['url'] === 'https://store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html?sc_e=fixture_aff_token' );
+
+$yahoo_aff_missing = TB247_DM_Url_Guard::validate_affiliate_url( 'https://store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html', 'yahoo' );
+check_bool( 'store.shopping.yahoo.co.jp không sc_e -> FAIL', null === $yahoo_aff_missing['url'] );
+check_bool( 'reason = missing_affiliate_parameters', 'missing_affiliate_parameters' === $yahoo_aff_missing['reason'] );
+
+$yahoo_aff_empty = TB247_DM_Url_Guard::validate_affiliate_url( 'https://store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html?sc_e=', 'yahoo' );
+check_bool( 'sc_e rỗng -> FAIL (missing_affiliate_parameters)', null === $yahoo_aff_empty['url'] && 'missing_affiliate_parameters' === $yahoo_aff_empty['reason'] );
+
+$yahoo_aff_utm_only = TB247_DM_Url_Guard::validate_affiliate_url( 'https://store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html?utm_source=discord', 'yahoo' );
+check_bool( 'chỉ UTM, không sc_e -> FAIL', null === $yahoo_aff_utm_only['url'] && 'missing_affiliate_parameters' === $yahoo_aff_utm_only['reason'] );
+
+$yahoo_aff_bare_shopping = TB247_DM_Url_Guard::validate_affiliate_url( 'https://shopping.yahoo.co.jp/products/fixture?sc_e=fixture_aff_token', 'yahoo' );
+check_bool(
+	'shopping.yahoo.co.jp trần (không phải store.shopping...) dù có sc_e -> FAIL (không nằm full-host allowlist affiliate)',
+	null === $yahoo_aff_bare_shopping['url'] && 'invalid_affiliate_host' === $yahoo_aff_bare_shopping['reason']
+);
+
+$yahoo_aff_malicious_1 = TB247_DM_Url_Guard::validate_affiliate_url( 'https://evil.yahoo.jp/x', 'yahoo' );
+check_bool( 'evil.yahoo.jp -> FAIL (host không exact match)', null === $yahoo_aff_malicious_1['url'] );
+
+$yahoo_aff_malicious_2 = TB247_DM_Url_Guard::validate_affiliate_url( 'https://yahoo.jp.evil.example/x', 'yahoo' );
+check_bool( 'yahoo.jp.evil.example -> FAIL (host không exact match)', null === $yahoo_aff_malicious_2['url'] );
+
+$yahoo_aff_malicious_3 = TB247_DM_Url_Guard::validate_affiliate_url( 'https://fake-yahoo.jp/x', 'yahoo' );
+check_bool( 'fake-yahoo.jp -> FAIL', null === $yahoo_aff_malicious_3['url'] );
+
+$yahoo_aff_malicious_4 = TB247_DM_Url_Guard::validate_affiliate_url( 'https://store.shopping.yahoo.co.jp.evil.example/x?sc_e=abc', 'yahoo' );
+check_bool( 'store.shopping.yahoo.co.jp.evil.example -> FAIL (host không exact match)', null === $yahoo_aff_malicious_4['url'] );
+
+$yahoo_aff_http = TB247_DM_Url_Guard::validate_affiliate_url( 'http://store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html?sc_e=fixture_aff_token', 'yahoo' );
+check_bool( 'http (không phải https) -> FAIL', null === $yahoo_aff_http['url'] );
+
+$yahoo_aff_userinfo = TB247_DM_Url_Guard::validate_affiliate_url( 'https://user:pass@store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html?sc_e=fixture_aff_token', 'yahoo' );
+check_bool( 'userinfo -> FAIL', null === $yahoo_aff_userinfo['url'] );
+
+$yahoo_aff_crlf = TB247_DM_Url_Guard::validate_affiliate_url( "https://store.shopping.yahoo.co.jp/fixture%0d%0aLocation:evil?sc_e=fixture_aff_token", 'yahoo' );
+check_bool( 'CRLF encoded -> FAIL', null === $yahoo_aff_crlf['url'] );
+
+$yahoo_aff_protocol_relative = TB247_DM_Url_Guard::validate_affiliate_url( '//store.shopping.yahoo.co.jp/fixture-shop/fixture-item-001.html?sc_e=fixture_aff_token', 'yahoo' );
+check_bool( 'protocol-relative -> FAIL', null === $yahoo_aff_protocol_relative['url'] );
+
+$yahoo_aff_javascript = TB247_DM_Url_Guard::validate_affiliate_url( 'javascript:alert(1)', 'yahoo' );
+check_bool( 'javascript: -> FAIL', null === $yahoo_aff_javascript['url'] );
+
+$yahoo_aff_data = TB247_DM_Url_Guard::validate_affiliate_url( 'data:text/html,test', 'yahoo' );
+check_bool( 'data: -> FAIL', null === $yahoo_aff_data['url'] );
+
+$yahoo_aff_file = TB247_DM_Url_Guard::validate_affiliate_url( 'file:///etc/passwd', 'yahoo' );
+check_bool( 'file: -> FAIL', null === $yahoo_aff_file['url'] );
+
+$yahoo_aff_ftp = TB247_DM_Url_Guard::validate_affiliate_url( 'ftp://store.shopping.yahoo.co.jp/fixture?sc_e=fixture_aff_token', 'yahoo' );
+check_bool( 'ftp: -> FAIL', null === $yahoo_aff_ftp['url'] );
+
+$yahoo_aff_malformed = TB247_DM_Url_Guard::validate_affiliate_url( 'not a url at all', 'yahoo' );
+check_bool( 'malformed URL -> FAIL', null === $yahoo_aff_malformed['url'] );
+
+$yahoo_aff_empty_url = TB247_DM_Url_Guard::validate_affiliate_url( '', 'yahoo' );
+check_bool( 'empty URL -> FAIL', null === $yahoo_aff_empty_url['url'] );
+
+check_bool(
+	'Rakuten short host (a.r10.to) KHÔNG được chấp nhận làm Yahoo affiliate (không dùng chung short host giữa 2 sàn)',
+	null === TB247_DM_Url_Guard::validate_affiliate_url( 'https://a.r10.to/fixture123', 'yahoo' )['url']
+);
+check_bool(
+	'Yahoo short host (yahoo.jp) KHÔNG được chấp nhận làm Rakuten affiliate',
+	null === TB247_DM_Url_Guard::validate_affiliate_url( 'https://yahoo.jp/fixtureTok', 'rakuten' )['url']
+);
+
+echo "\n########################################\n";
 echo "TỔNG KẾT: $pass PASS, $fail FAIL\n";
 echo "########################################\n";
 

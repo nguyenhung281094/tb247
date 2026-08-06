@@ -206,6 +206,18 @@ check(
 	'2 Rakuten shop khác nhau cùng item_code text nhưng khác shop_code -> code KHÁC NHAU (không đụng nhau)',
 	TB247_DM_Deal_Service::compute_code( 'rakuten', '', 'shop-a', 'item-001' ) !== TB247_DM_Deal_Service::compute_code( 'rakuten', '', 'shop-b', 'item-001' )
 );
+check(
+	'2 Yahoo shop khác nhau cùng item_code text nhưng khác shop_code -> code KHÁC NHAU (task Yahoo parity §3/§9)',
+	TB247_DM_Deal_Service::compute_code( 'yahoo', '', 'fixture-shop', 'item-001' ) !== TB247_DM_Deal_Service::compute_code( 'yahoo', '', 'other-shop', 'item-001' )
+);
+check(
+	'Yahoo: thiếu item_code -> code rỗng (không đoán/ghép thiếu)',
+	'' === TB247_DM_Deal_Service::compute_code( 'yahoo', '', 'fixture-shop', '' )
+);
+check(
+	'compute_code(yahoo, asin_thô, "", "") -> code rỗng (Yahoo KHÔNG dùng ASIN dù caller lỡ truyền nhầm — chỉ Amazon)',
+	'' === TB247_DM_Deal_Service::compute_code( 'yahoo', 'B0GWHBFNGG', '', '' )
+);
 
 echo "\n########################################\n";
 echo "# Structural check: find_by_jan_scoped() — ambiguous-safe, scoped theo marketplace (§10)\n";
