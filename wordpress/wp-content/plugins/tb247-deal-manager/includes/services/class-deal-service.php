@@ -202,6 +202,265 @@ class TB247_DM_Deal_Service {
 	}
 
 	/**
+	 * Tính "code" định danh duy nhất trong 1 marketplace — CÙNG công thức
+	 * TB247_DM_Amazon_Marketplace/TB247_DM_Rakuten_Marketplace::get_code()
+	 * dùng khi tạo deal (strtoupper ASIN cho Amazon; strtoupper(shop_code
+	 * "-" item_code) cho Rakuten/Yahoo), để REST endpoint tra cứu
+	 * (/deals/find, /deals/flags, /deals/refresh) tính lại được ĐÚNG code
+	 * đã lưu trong _tb247_asin mà không cần Bot tự replicate định dạng —
+	 * tránh lệch format giữa nơi ghi (create_or_update) và nơi đọc (lookup).
+	 *
+	 * @param string $marketplace Slug sàn ("amazon"/"rakuten"/"yahoo").
+	 * @param string $asin        ASIN thô (chỉ dùng cho Amazon).
+	 * @param string $shop_code   shop_code thô (Rakuten/Yahoo).
+	 * @param string $item_code   item_code thô (Rakuten/Yahoo).
+	 * @return string Rỗng nếu không đủ dữ liệu để tính.
+	 */
+	public static function compute_code( $marketplace, $asin, $shop_code, $item_code ) {
+		$marketplace = sanitize_key( (string) $marketplace );
+		$asin        = trim( (string) $asin );
+
+		// Backward-compat: marketplace rỗng nhưng CÓ asin -> chắc chắn Amazon
+		// (chỉ sàn đó dùng ASIN).
+		if ( '' === $marketplace && '' !== $asin ) {
+			$marketplace = 'amazon';
+		}
+
+		if ( 'amazon' === $marketplace ) {
+			return '' !== $asin ? strtoupper( $asin ) : '';
+		}
+
+		if ( '' === $marketplace ) {
+			// Không biết marketplace VÀ không có asin -> không đủ dữ liệu để
+			// tính code — riêng shop_code/item_code một mình không phân biệt
+			// được Rakuten hay Yahoo (2 sàn dùng chung shape), không được đoán.
+			return '';
+		}
+
+		$shop_code = sanitize_key( (string) $shop_code );
+		$item_code = sanitize_key( (string) $item_code );
+
+		if ( '' === $shop_code || '' === $item_code ) {
+			return '';
+		}
+
+		return strtoupper( $shop_code . '-' . $item_code );
+	}
+
+	/**
+	 * Tìm deal theo JAN, SCOPED theo marketplace nếu có (§B/§10 audit bug
+	 * cross-marketplace/cross-shop): JAN KHÔNG BAO GIỜ được coi là unique key
+	 * toàn cục — 2 deal khác marketplace, hoặc khác shop CÙNG marketplace, có
+	 * thể mang cùng JAN hợp lệ (cùng sản phẩm bán ở nhiều nơi). Trả về
+	 * status=ambiguous (KHÔNG tự chọn deal đầu tiên) nếu có >1 kết quả trong
+	 * đúng phạm vi tìm kiếm (marketplace đã cho, hoặc toàn cục nếu caller
+	 * không biết marketplace — trường hợp JAN-only command cũ).
+	 *
+	 * @param string $marketplace Slug sàn để scope, hoặc '' để tìm toàn cục
+	 *                            (chỉ dùng khi thực sự không biết marketplace —
+	 *                            vẫn phát hiện ambiguous nếu nhiều sàn cùng JAN).
+	 * @param string $jan         JAN cần tìm.
+	 * @return array{status: 'found'|'not_found'|'ambiguous', deal: WP_Post|null}
+	 */
+	public static function find_by_jan_scoped( $marketplace, $jan ) {
+		$jan = trim( (string) $jan );
+
+		if ( '' === $jan ) {
+			return array(
+				'status' => 'not_found',
+				'deal'   => null,
+			);
+		}
+
+		$meta_query = array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+			array(
+				'key'   => '_tb247_jan',
+				'value' => $jan,
+			),
+		);
+
+		$marketplace = sanitize_key( (string) $marketplace );
+
+		if ( '' !== $marketplace ) {
+			$meta_query[] = array(
+				'key'   => '_tb247_marketplace',
+				'value' => $marketplace,
+			);
+		}
+
+		$query = new WP_Query(
+			array(
+				'post_type'      => TB247_DM_Deal_Post_Type::POST_TYPE,
+				'post_status'    => 'publish',
+				// Chỉ cần biết CÓ >1 kết quả hay không, không cần đếm hết —
+				// 5 đủ để phân biệt found (1)/ambiguous (>=2) mà không quét
+				// toàn bảng khi 1 JAN vô tình khớp rất nhiều deal.
+				'posts_per_page' => 5,
+				'no_found_rows'  => true,
+				'meta_query'     => $meta_query, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+			)
+		);
+
+		if ( ! $query->have_posts() ) {
+			return array(
+				'status' => 'not_found',
+				'deal'   => null,
+			);
+		}
+
+		if ( count( $query->posts ) > 1 ) {
+			return array(
+				'status' => 'ambiguous',
+				'deal'   => null,
+			);
+		}
+
+		return array(
+			'status' => 'found',
+			'deal'   => $query->posts[0],
+		);
+	}
+
+	/**
+	 * Tìm deal theo source URL đã chuẩn hoá, SCOPED theo marketplace — bản an
+	 * toàn của find_by_source_url() (vốn không phân biệt sàn). Dùng khi
+	 * caller đã biết chắc marketplace (từ URL vừa parse) để không bao giờ so
+	 * khớp nhầm source_url của sàn khác (về lý thuyết khó trùng URL thật giữa
+	 * 2 sàn khác nhau, nhưng vẫn scope để nhất quán nguyên tắc "không bao giờ
+	 * lookup cross-marketplace").
+	 *
+	 * @param string $marketplace Slug sàn.
+	 * @param string $source_url  URL sản phẩm gốc (chưa chuẩn hoá).
+	 * @return WP_Post|null
+	 */
+	public static function find_by_marketplace_and_source_url( $marketplace, $source_url ) {
+		$normalized = self::normalize_url( $source_url );
+
+		if ( '' === $normalized ) {
+			return null;
+		}
+
+		$query = new WP_Query(
+			array(
+				'post_type'      => TB247_DM_Deal_Post_Type::POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => 50,
+				'no_found_rows'  => true,
+				'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+					'relation' => 'AND',
+					array(
+						'key'   => '_tb247_marketplace',
+						'value' => sanitize_key( (string) $marketplace ),
+					),
+					array(
+						'key'     => '_tb247_product_url',
+						'value'   => '',
+						'compare' => '!=',
+					),
+				),
+			)
+		);
+
+		foreach ( $query->posts as $candidate ) {
+			$candidate_url = get_post_meta( $candidate->ID, '_tb247_product_url', true );
+
+			if ( self::normalize_url( $candidate_url ) === $normalized ) {
+				return $candidate;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Điểm vào DUY NHẤT, AN TOÀN cho mọi lookup deal của REST endpoint
+	 * (/deals/find, /deals/flags, /deals/refresh) — thay thế hoàn toàn kiểu
+	 * "thử JAN trước, không scope marketplace" cũ (chính bug §6 audit: lookup
+	 * theo JAN toàn cục trả nhầm deal khác marketplace/khác shop). Thứ tự ưu
+	 * tiên ĐÚNG theo §7/§10:
+	 *   1. Unique key CHÍNH XÁC theo marketplace (ASIN cho Amazon, shop_code+
+	 *      item_code cho Rakuten/Yahoo) — nếu caller cung cấp đủ, đây là
+	 *      nguồn sự thật duy nhất, KHÔNG BAO GIỜ ambiguous. Nếu có identity
+	 *      này mà không tìm thấy -> not_found DỨT KHOÁT, không fallback JAN
+	 *      (tránh trả nhầm deal khác chỉ vì trùng JAN).
+	 *   2. source_url — scoped theo marketplace nếu biết; giữ hành vi cũ
+	 *      (không scope) khi caller thật sự không có marketplace, để không
+	 *      phá các caller cũ hơn chưa được nâng cấp gửi field này.
+	 *   3. JAN — CHỈ dùng khi không có 2 cái trên, scoped theo marketplace
+	 *      nếu biết; ambiguous-safe (không tự chọn deal đầu tiên).
+	 *
+	 * @param array $identity {
+	 *     @type string $marketplace Slug sàn, có thể rỗng (suy ra 'amazon' nếu có $asin).
+	 *     @type string $asin        ASIN (Amazon).
+	 *     @type string $shop_code   shop_code (Rakuten/Yahoo).
+	 *     @type string $item_code   item_code (Rakuten/Yahoo).
+	 *     @type string $jan         JAN — CHỈ dùng như fallback cuối.
+	 *     @type string $source_url  URL sản phẩm gốc.
+	 * }
+	 * @return array{status: 'found'|'not_found'|'ambiguous', deal: WP_Post|null}
+	 */
+	public static function locate_deal_safe( array $identity ) {
+		$marketplace = isset( $identity['marketplace'] ) ? sanitize_key( (string) $identity['marketplace'] ) : '';
+		$asin        = isset( $identity['asin'] ) ? trim( (string) $identity['asin'] ) : '';
+		$shop_code   = isset( $identity['shop_code'] ) ? trim( (string) $identity['shop_code'] ) : '';
+		$item_code   = isset( $identity['item_code'] ) ? trim( (string) $identity['item_code'] ) : '';
+		$jan         = isset( $identity['jan'] ) ? trim( (string) $identity['jan'] ) : '';
+		$source_url  = isset( $identity['source_url'] ) ? trim( (string) $identity['source_url'] ) : '';
+
+		// Backward-compat: caller CŨ (chưa nâng cấp gửi `marketplace`) nhưng
+		// CÓ `asin` -> chắc chắn Amazon (chỉ sàn đó dùng ASIN). shop_code/
+		// item_code không tự suy ra marketplace được (Rakuten/Yahoo dùng
+		// chung shape) nên 2 sàn đó BẮT BUỘC phải có `marketplace` tường minh.
+		if ( '' === $marketplace && '' !== $asin ) {
+			$marketplace = 'amazon';
+		}
+
+		$code = self::compute_code( $marketplace, $asin, $shop_code, $item_code );
+
+		if ( '' !== $marketplace && '' !== $code ) {
+			$deal = self::find_by_marketplace_and_code( $marketplace, $code );
+
+			if ( $deal ) {
+				return array(
+					'status' => 'found',
+					'deal'   => $deal,
+				);
+			}
+
+			// Có identity CHÍNH XÁC (ASIN hoặc shop+item) nhưng không tìm
+			// thấy -> not_found DỨT KHOÁT ngay tại đây. KHÔNG fallback JAN —
+			// đây chính là điểm sửa bug: trước đây JAN được thử trước/độc
+			// lập, có thể trả nhầm 1 deal khác marketplace/shop cùng JAN.
+			return array(
+				'status' => 'not_found',
+				'deal'   => null,
+			);
+		}
+
+		if ( '' !== $source_url ) {
+			$deal = ( '' !== $marketplace )
+				? self::find_by_marketplace_and_source_url( $marketplace, $source_url )
+				: self::find_by_source_url( $source_url );
+
+			if ( $deal ) {
+				return array(
+					'status' => 'found',
+					'deal'   => $deal,
+				);
+			}
+		}
+
+		if ( '' !== $jan ) {
+			return self::find_by_jan_scoped( $marketplace, $jan );
+		}
+
+		return array(
+			'status' => 'not_found',
+			'deal'   => null,
+		);
+	}
+
+	/**
 	 * Tạo mới hoặc cập nhật deal từ payload REST API đã qua validate.
 	 *
 	 * @param TB247_DM_Marketplace $marketplace Marketplace tương ứng payload.

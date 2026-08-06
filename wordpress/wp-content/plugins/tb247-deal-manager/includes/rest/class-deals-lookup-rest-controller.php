@@ -43,8 +43,16 @@ class TB247_DM_Deals_Lookup_Rest_Controller {
 	}
 
 	/**
-	 * GET /deals/find?jan=&asin=&source_url= — tìm deal theo thứ tự ưu tiên
-	 * JAN -> ASIN -> source_url. Không tạo deal mới.
+	 * GET /deals/find?marketplace=&asin=&shop_code=&item_code=&jan=&source_url=
+	 * — tìm deal qua TB247_DM_Deal_Service::locate_deal_safe() (unique key
+	 * CHÍNH XÁC theo marketplace trước, JAN CHỈ dùng như fallback cuối, luôn
+	 * SCOPED theo marketplace nếu biết — KHÔNG BAO GIỜ trả nhầm deal khác
+	 * marketplace/shop chỉ vì trùng JAN, xem docblock locate_deal_safe()).
+	 * Không tạo deal mới.
+	 *
+	 * `ambiguous` (nhiều deal cùng JAN trong phạm vi tìm) trả `found: false,
+	 * ambiguous: true` — client CŨ chưa biết field này vẫn an toàn (đọc
+	 * `found` như trước, coi như not_found, KHÔNG BAO GIỜ tự chọn nhầm).
 	 *
 	 * @param WP_REST_Request $request Request thô, chưa qua xác thực.
 	 * @return WP_REST_Response
@@ -56,13 +64,29 @@ class TB247_DM_Deals_Lookup_Rest_Controller {
 			return self::error_response_from_wp_error( $auth );
 		}
 
-		$deal = self::locate_deal(
-			(string) $request->get_param( 'jan' ),
-			(string) $request->get_param( 'asin' ),
-			(string) $request->get_param( 'source_url' )
+		$result = TB247_DM_Deal_Service::locate_deal_safe(
+			array(
+				'marketplace' => (string) $request->get_param( 'marketplace' ),
+				'asin'        => (string) $request->get_param( 'asin' ),
+				'shop_code'   => (string) $request->get_param( 'shop_code' ),
+				'item_code'   => (string) $request->get_param( 'item_code' ),
+				'jan'         => (string) $request->get_param( 'jan' ),
+				'source_url'  => (string) $request->get_param( 'source_url' ),
+			)
 		);
 
-		if ( ! $deal ) {
+		if ( 'ambiguous' === $result['status'] ) {
+			return new WP_REST_Response(
+				array(
+					'success'   => true,
+					'found'     => false,
+					'ambiguous' => true,
+				),
+				200
+			);
+		}
+
+		if ( 'found' !== $result['status'] || ! $result['deal'] ) {
 			return new WP_REST_Response(
 				array(
 					'success' => true,
@@ -76,7 +100,7 @@ class TB247_DM_Deals_Lookup_Rest_Controller {
 			array(
 				'success' => true,
 				'found'   => true,
-				'deal'    => self::deal_to_array( $deal ),
+				'deal'    => self::deal_to_array( $result['deal'] ),
 			),
 			200
 		);
@@ -110,11 +134,33 @@ class TB247_DM_Deals_Lookup_Rest_Controller {
 			);
 		}
 
-		$deal = self::locate_deal(
-			isset( $payload['jan'] ) ? (string) $payload['jan'] : '',
-			isset( $payload['asin'] ) ? (string) $payload['asin'] : '',
-			isset( $payload['source_url'] ) ? (string) $payload['source_url'] : ''
+		$locate_result = TB247_DM_Deal_Service::locate_deal_safe(
+			array(
+				'marketplace' => isset( $payload['marketplace'] ) ? (string) $payload['marketplace'] : '',
+				'asin'        => isset( $payload['asin'] ) ? (string) $payload['asin'] : '',
+				'shop_code'   => isset( $payload['shop_code'] ) ? (string) $payload['shop_code'] : '',
+				'item_code'   => isset( $payload['item_code'] ) ? (string) $payload['item_code'] : '',
+				'jan'         => isset( $payload['jan'] ) ? (string) $payload['jan'] : '',
+				'source_url'  => isset( $payload['source_url'] ) ? (string) $payload['source_url'] : '',
+			)
 		);
+
+		// ambiguous (§10/§13): nhiều deal cùng JAN trong phạm vi tìm — KHÔNG
+		// BAO GIỜ tự chọn 1 deal để cập nhật flags. 409 Conflict (khác 404
+		// not_found) để Bot phân biệt được "chưa có deal" và "có nhưng mơ hồ,
+		// cần identity chính xác hơn" — message JP đề xuất theo đúng handoff.
+		if ( 'ambiguous' === $locate_result['status'] ) {
+			return new WP_REST_Response(
+				array(
+					'success' => false,
+					'code'    => 'ambiguous',
+					'message' => __( 'Multiple deals share this JAN. Specify the exact shop/product URL.', 'tb247-deal-manager' ),
+				),
+				409
+			);
+		}
+
+		$deal = $locate_result['deal'];
 
 		if ( ! $deal ) {
 			return new WP_REST_Response(
@@ -175,48 +221,6 @@ class TB247_DM_Deals_Lookup_Rest_Controller {
 	}
 
 	/**
-	 * Tìm deal theo thứ tự ưu tiên: JAN -> ASIN -> source_url (chuẩn hoá).
-	 *
-	 * @param string $jan        JAN thô (có thể rỗng).
-	 * @param string $asin       ASIN thô (có thể rỗng).
-	 * @param string $source_url URL sản phẩm gốc thô (có thể rỗng).
-	 * @return WP_Post|null
-	 */
-	private static function locate_deal( $jan, $asin, $source_url ) {
-		$jan = trim( $jan );
-
-		if ( '' !== $jan ) {
-			$deal = TB247_DM_Deal_Service::find_by_jan( $jan );
-
-			if ( $deal ) {
-				return $deal;
-			}
-		}
-
-		$asin = trim( $asin );
-
-		if ( '' !== $asin ) {
-			$deal = TB247_DM_Deal_Service::find_by_code( $asin );
-
-			if ( $deal ) {
-				return $deal;
-			}
-		}
-
-		$source_url = trim( $source_url );
-
-		if ( '' !== $source_url ) {
-			$deal = TB247_DM_Deal_Service::find_by_source_url( $source_url );
-
-			if ( $deal ) {
-				return $deal;
-			}
-		}
-
-		return null;
-	}
-
-	/**
 	 * Chuẩn hoá payload field is_recommended/is_sale: chỉ chấp nhận true/false
 	 * rõ ràng, mọi giá trị khác (thiếu, null, sai kiểu) coi là "giữ nguyên".
 	 *
@@ -243,6 +247,12 @@ class TB247_DM_Deals_Lookup_Rest_Controller {
 			'post_id'        => $deal->ID,
 			'code'           => get_post_meta( $deal->ID, '_tb247_asin', true ),
 			'jan'            => get_post_meta( $deal->ID, '_tb247_jan', true ),
+			// shop_code/item_code (§7/§11: trả lại identity chính xác Bot cần
+			// cho lần refresh/flags tiếp theo — không bắt Bot tự re-parse URL
+			// lại để lấy 2 field này). Rỗng cho Amazon (chỉ có asin/code).
+			'shop_code'      => get_post_meta( $deal->ID, '_tb247_shop_code', true ),
+			'item_code'      => get_post_meta( $deal->ID, '_tb247_item_code', true ),
+			'source_url'     => get_post_meta( $deal->ID, '_tb247_product_url', true ),
 			'product_name'   => $deal->post_title,
 			'marketplace'    => get_post_meta( $deal->ID, '_tb247_marketplace', true ),
 			'is_recommended' => '1' === get_post_meta( $deal->ID, '_tb247_is_recommended', true ),

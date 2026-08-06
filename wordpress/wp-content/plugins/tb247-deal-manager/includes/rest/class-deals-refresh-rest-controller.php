@@ -50,9 +50,13 @@ class TB247_DM_Deals_Refresh_Rest_Controller {
 	}
 
 	/**
-	 * PUT/PATCH /deals/refresh — update-only. Tìm deal theo JAN -> ASIN ->
-	 * source_url (đúng thứ tự locate như /deals/flags). KHÔNG BAO GIỜ tạo deal
-	 * mới, KHÔNG BAO GIỜ đụng is_recommended/is_sale/affiliate_url — payload có
+	 * PUT/PATCH /deals/refresh — update-only. Tìm deal qua
+	 * TB247_DM_Deal_Service::locate_deal_safe() — unique key CHÍNH XÁC theo
+	 * marketplace trước (asin cho Amazon, shop_code+item_code cho Rakuten/
+	 * Yahoo), JAN chỉ dùng như fallback cuối và luôn SCOPED theo marketplace
+	 * (không bao giờ cập nhật nhầm deal khác marketplace/shop chỉ vì trùng
+	 * JAN — xem docblock locate_deal_safe()). KHÔNG BAO GIỜ tạo deal mới,
+	 * KHÔNG BAO GIỜ đụng is_recommended/is_sale/affiliate_url — payload có
 	 * gửi các field đó cũng bị bỏ qua hoàn toàn ở tầng Deal_Service (không đọc
 	 * tới), không phải chỉ "không cố ý dùng".
 	 *
@@ -79,11 +83,31 @@ class TB247_DM_Deals_Refresh_Rest_Controller {
 			);
 		}
 
-		$deal = self::locate_deal(
-			isset( $payload['jan'] ) ? (string) $payload['jan'] : '',
-			isset( $payload['asin'] ) ? (string) $payload['asin'] : '',
-			isset( $payload['source_url'] ) ? (string) $payload['source_url'] : ''
+		$locate_result = TB247_DM_Deal_Service::locate_deal_safe(
+			array(
+				'marketplace' => isset( $payload['marketplace'] ) ? (string) $payload['marketplace'] : '',
+				'asin'        => isset( $payload['asin'] ) ? (string) $payload['asin'] : '',
+				'shop_code'   => isset( $payload['shop_code'] ) ? (string) $payload['shop_code'] : '',
+				'item_code'   => isset( $payload['item_code'] ) ? (string) $payload['item_code'] : '',
+				'jan'         => isset( $payload['jan'] ) ? (string) $payload['jan'] : '',
+				'source_url'  => isset( $payload['source_url'] ) ? (string) $payload['source_url'] : '',
+			)
 		);
+
+		// ambiguous (§10/§12): nhiều deal cùng JAN trong phạm vi tìm — refresh
+		// TUYỆT ĐỐI không được đoán/update nhầm deal khác marketplace/shop.
+		if ( 'ambiguous' === $locate_result['status'] ) {
+			return new WP_REST_Response(
+				array(
+					'success' => false,
+					'code'    => 'ambiguous',
+					'message' => __( 'Multiple deals share this JAN. Specify the exact shop/product identity.', 'tb247-deal-manager' ),
+				),
+				409
+			);
+		}
+
+		$deal = $locate_result['deal'];
 
 		if ( ! $deal ) {
 			// KHÔNG tạo deal — đúng hành vi update-only §7/§11.2.
@@ -150,51 +174,6 @@ class TB247_DM_Deals_Refresh_Rest_Controller {
 	}
 
 	/**
-	 * Tìm deal theo thứ tự ưu tiên: JAN -> ASIN -> source_url (chuẩn hoá) —
-	 * cùng logic locate_deal() private của Deals_Lookup_Rest_Controller,
-	 * nhân bản tối thiểu ở đây vì cả 2 method nguồn (find_by_jan/find_by_code/
-	 * find_by_source_url) đều PUBLIC trên Deal_Service — không cần đụng file kia.
-	 *
-	 * @param string $jan        JAN thô (có thể rỗng).
-	 * @param string $asin       ASIN thô (có thể rỗng).
-	 * @param string $source_url URL sản phẩm gốc thô (có thể rỗng).
-	 * @return WP_Post|null
-	 */
-	private static function locate_deal( $jan, $asin, $source_url ) {
-		$jan = trim( $jan );
-
-		if ( '' !== $jan ) {
-			$deal = TB247_DM_Deal_Service::find_by_jan( $jan );
-
-			if ( $deal ) {
-				return $deal;
-			}
-		}
-
-		$asin = trim( $asin );
-
-		if ( '' !== $asin ) {
-			$deal = TB247_DM_Deal_Service::find_by_code( $asin );
-
-			if ( $deal ) {
-				return $deal;
-			}
-		}
-
-		$source_url = trim( $source_url );
-
-		if ( '' !== $source_url ) {
-			$deal = TB247_DM_Deal_Service::find_by_source_url( $source_url );
-
-			if ( $deal ) {
-				return $deal;
-			}
-		}
-
-		return null;
-	}
-
-	/**
 	 * Chuyển 1 deal post thành mảng dữ liệu trả về cho /deals/refresh — cùng
 	 * shape với /deals/flags để Bot dùng chung 1 kiểu parse response.
 	 *
@@ -203,15 +182,18 @@ class TB247_DM_Deals_Refresh_Rest_Controller {
 	 */
 	private static function deal_to_array( WP_Post $deal ) {
 		return array(
-			'post_id'                    => $deal->ID,
-			'code'                       => get_post_meta( $deal->ID, '_tb247_asin', true ),
-			'jan'                        => get_post_meta( $deal->ID, '_tb247_jan', true ),
-			'product_name'               => $deal->post_title,
-			'marketplace'                => get_post_meta( $deal->ID, '_tb247_marketplace', true ),
-			'is_recommended'             => '1' === get_post_meta( $deal->ID, '_tb247_is_recommended', true ),
-			'is_sale'                    => '1' === get_post_meta( $deal->ID, '_tb247_is_sale', true ),
-			'recommended_updated_at'     => get_post_meta( $deal->ID, '_tb247_recommended_updated_at', true ),
-			'url'                        => home_url( '/d/' . rawurlencode( get_post_meta( $deal->ID, '_tb247_asin', true ) ) ),
+			'post_id'                => $deal->ID,
+			'code'                   => get_post_meta( $deal->ID, '_tb247_asin', true ),
+			'jan'                    => get_post_meta( $deal->ID, '_tb247_jan', true ),
+			'shop_code'              => get_post_meta( $deal->ID, '_tb247_shop_code', true ),
+			'item_code'              => get_post_meta( $deal->ID, '_tb247_item_code', true ),
+			'source_url'             => get_post_meta( $deal->ID, '_tb247_product_url', true ),
+			'product_name'           => $deal->post_title,
+			'marketplace'            => get_post_meta( $deal->ID, '_tb247_marketplace', true ),
+			'is_recommended'         => '1' === get_post_meta( $deal->ID, '_tb247_is_recommended', true ),
+			'is_sale'                => '1' === get_post_meta( $deal->ID, '_tb247_is_sale', true ),
+			'recommended_updated_at' => get_post_meta( $deal->ID, '_tb247_recommended_updated_at', true ),
+			'url'                    => home_url( '/d/' . rawurlencode( get_post_meta( $deal->ID, '_tb247_asin', true ) ) ),
 		);
 	}
 

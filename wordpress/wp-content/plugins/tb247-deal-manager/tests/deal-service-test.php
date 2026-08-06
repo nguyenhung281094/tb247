@@ -15,6 +15,14 @@
 define( 'ABSPATH', __DIR__ . '/' );
 define( 'DAY_IN_SECONDS', 86400 );
 
+/**
+ * Stub sanitize_key() — WP core, dùng bởi compute_code()/locate_deal_safe().
+ */
+function sanitize_key( $key ) {
+	$key = strtolower( (string) $key );
+	return preg_replace( '/[^a-z0-9_\-]/', '', $key );
+}
+
 require __DIR__ . '/../includes/services/class-deal-service.php';
 
 $pass = 0;
@@ -182,6 +190,107 @@ echo "########################################\n";
 
 $validator_source = file_get_contents( __DIR__ . '/../includes/rest/class-products-validator.php' );
 check( 'validate_rakuten() gọi validate_affiliate_url_field() với required=false', strpos( $validator_source, "self::validate_affiliate_url_field( \$payload, 'affiliate_url', \$marketplace, false, \$errors )" ) !== false );
+
+echo "\n########################################\n";
+echo "# TB247_DM_Deal_Service::compute_code() — unique key theo marketplace (bug fix cross-marketplace lookup)\n";
+echo "########################################\n";
+
+check( 'Amazon: compute_code(amazon, B0GWHBFNGG, "", "") = B0GWHBFNGG (uppercase)', 'B0GWHBFNGG' === TB247_DM_Deal_Service::compute_code( 'amazon', 'b0gwhbfngg', '', '' ) );
+check( 'Amazon: asin rỗng -> code rỗng', '' === TB247_DM_Deal_Service::compute_code( 'amazon', '', '', '' ) );
+check( 'Rakuten: compute_code(rakuten, "", shop-a, item-001) = SHOP-A-ITEM-001', 'SHOP-A-ITEM-001' === TB247_DM_Deal_Service::compute_code( 'rakuten', '', 'shop-a', 'item-001' ) );
+check( 'Rakuten: thiếu item_code -> code rỗng (không đoán/ghép thiếu)', '' === TB247_DM_Deal_Service::compute_code( 'rakuten', '', 'shop-a', '' ) );
+check( 'Yahoo: dùng CÙNG công thức shop_code-item_code như Rakuten', TB247_DM_Deal_Service::compute_code( 'yahoo', '', 'shop-a', 'item-001' ) === TB247_DM_Deal_Service::compute_code( 'rakuten', '', 'shop-a', 'item-001' ) );
+check( 'marketplace rỗng NHƯNG có asin -> vẫn tính được code (suy luận Amazon, backward-compat caller cũ)', 'B0GWHBFNGG' === TB247_DM_Deal_Service::compute_code( '', 'B0GWHBFNGG', '', '' ) );
+check( 'marketplace rỗng VÀ không có asin (chỉ shop/item) -> code rỗng (Rakuten/Yahoo bắt buộc phải có marketplace tường minh)', '' === TB247_DM_Deal_Service::compute_code( '', '', 'shop-a', 'item-001' ) );
+check(
+	'2 Rakuten shop khác nhau cùng item_code text nhưng khác shop_code -> code KHÁC NHAU (không đụng nhau)',
+	TB247_DM_Deal_Service::compute_code( 'rakuten', '', 'shop-a', 'item-001' ) !== TB247_DM_Deal_Service::compute_code( 'rakuten', '', 'shop-b', 'item-001' )
+);
+
+echo "\n########################################\n";
+echo "# Structural check: find_by_jan_scoped() — ambiguous-safe, scoped theo marketplace (§10)\n";
+echo "########################################\n";
+
+$jan_scoped_start = strpos( $service_source, 'public static function find_by_jan_scoped' );
+$jan_scoped_end   = strpos( $service_source, "\n\t}\n", $jan_scoped_start );
+$jan_scoped_source = substr( $service_source, $jan_scoped_start, $jan_scoped_end - $jan_scoped_start );
+
+check( 'find_by_jan_scoped() tồn tại', -1 !== $jan_scoped_start );
+check( 'chỉ thêm điều kiện _tb247_marketplace vào meta_query khi $marketplace không rỗng (scoped nếu biết, không ép buộc khi không biết)', strpos( $jan_scoped_source, "if ( '' !== \$marketplace ) {" ) !== false );
+check( '>1 kết quả -> status=ambiguous, KHÔNG tự chọn deal đầu tiên (chính bug cần sửa)', strpos( $jan_scoped_source, "count( \$query->posts ) > 1" ) !== false && strpos( $jan_scoped_source, "'status' => 'ambiguous'" ) !== false );
+check( 'trả object { status, deal } — không trả thẳng WP_Post|null như find_by_jan() cũ (buộc caller xử lý rõ 3 trạng thái)', preg_match( '/return array\(\s*\'status\'\s*=>\s*\'found\'/', $jan_scoped_source ) === 1 );
+
+echo "\n########################################\n";
+echo "# Structural check: locate_deal_safe() — điểm vào AN TOÀN DUY NHẤT cho lookup REST (fix bug §6)\n";
+echo "########################################\n";
+
+$locate_safe_start = strpos( $service_source, 'public static function locate_deal_safe' );
+$locate_safe_end   = strpos( $service_source, "\n\t}\n", $locate_safe_start );
+$locate_safe_source = substr( $service_source, $locate_safe_start, $locate_safe_end - $locate_safe_start );
+
+check( 'locate_deal_safe() tồn tại', -1 !== $locate_safe_start );
+check(
+	'ƯU TIÊN 1: unique key CHÍNH XÁC (marketplace+code) được thử TRƯỚC JAN (đảo ngược thứ tự cũ — chính bug fix)',
+	strpos( $locate_safe_source, 'find_by_marketplace_and_code( $marketplace, $code )' ) < strpos( $locate_safe_source, 'find_by_jan_scoped( $marketplace, $jan )' )
+);
+check(
+	'có identity CHÍNH XÁC (marketplace+code) mà KHÔNG tìm thấy -> not_found DỨT KHOÁT, KHÔNG fallback JAN (chính bug: trước đây JAN được thử độc lập, trả nhầm deal khác marketplace/shop)',
+	(function () use ( $locate_safe_source ) {
+		$code_block_start = strpos( $locate_safe_source, "if ( '' !== \$marketplace && '' !== \$code ) {" );
+		$code_block_end   = strpos( $locate_safe_source, "if ( '' !== \$source_url ) {" );
+		$code_block       = substr( $locate_safe_source, $code_block_start, $code_block_end - $code_block_start );
+		return strpos( $code_block, "'status' => 'not_found'" ) !== false && strpos( $code_block, 'find_by_jan' ) === false;
+	} )()
+);
+check( 'ƯU TIÊN 2: source_url — SCOPED theo marketplace khi biết (find_by_marketplace_and_source_url)', strpos( $locate_safe_source, 'find_by_marketplace_and_source_url( $marketplace, $source_url )' ) !== false );
+check( 'ƯU TIÊN 3 (CUỐI CÙNG): JAN — scoped, ambiguous-safe qua find_by_jan_scoped()', strpos( $locate_safe_source, 'return self::find_by_jan_scoped( $marketplace, $jan );' ) !== false );
+check( 'backward-compat: marketplace rỗng nhưng CÓ asin -> tự suy marketplace=amazon (caller cũ /deals/find?asin=... vẫn hoạt động)', strpos( $locate_safe_source, "\$marketplace = 'amazon';" ) !== false );
+
+echo "\n########################################\n";
+echo "# Structural check: find_by_marketplace_and_source_url() — scoped, không trộn sàn\n";
+echo "########################################\n";
+
+check(
+	'find_by_marketplace_and_source_url() lọc theo _tb247_marketplace trong meta_query',
+	(function () use ( $service_source ) {
+		$start = strpos( $service_source, 'public static function find_by_marketplace_and_source_url' );
+		$end   = strpos( $service_source, "\n\t}\n", $start );
+		$body  = substr( $service_source, $start, $end - $start );
+		return strpos( $body, "'key'   => '_tb247_marketplace'" ) !== false;
+	} )()
+);
+
+echo "\n########################################\n";
+echo "# Structural check: REST wiring — /deals/find, /deals/flags, /deals/refresh dùng locate_deal_safe() (không còn JAN-first)\n";
+echo "########################################\n";
+
+$lookup_controller_full_source = file_get_contents( __DIR__ . '/../includes/rest/class-deals-lookup-rest-controller.php' );
+$refresh_controller_full_source = file_get_contents( __DIR__ . '/../includes/rest/class-deals-refresh-rest-controller.php' );
+
+check( '/deals/find (handle_find) gọi locate_deal_safe()', strpos( $lookup_controller_full_source, 'TB247_DM_Deal_Service::locate_deal_safe(' ) !== false );
+check(
+	'/deals/flags (handle_update_flags) gọi locate_deal_safe()',
+	(function () use ( $lookup_controller_full_source ) {
+		$fn_start = strpos( $lookup_controller_full_source, 'public static function handle_update_flags' );
+		$fn_end   = strpos( $lookup_controller_full_source, "\n\t}\n", $fn_start );
+		return strpos( substr( $lookup_controller_full_source, $fn_start, $fn_end - $fn_start ), 'TB247_DM_Deal_Service::locate_deal_safe(' ) !== false;
+	} )()
+);
+check( '/deals/refresh (handle_refresh) gọi locate_deal_safe()', strpos( $refresh_controller_full_source, 'TB247_DM_Deal_Service::locate_deal_safe(' ) !== false );
+check( '/deals/find KHÔNG còn method locate_deal() private cũ (JAN-first không scope)', strpos( $lookup_controller_full_source, 'private static function locate_deal(' ) === false );
+check( '/deals/refresh KHÔNG còn method locate_deal() private cũ (JAN-first không scope)', strpos( $refresh_controller_full_source, 'private static function locate_deal(' ) === false );
+check(
+	'/deals/flags trả 409 ambiguous (KHÔNG tự chọn deal để đổi flags khi mơ hồ)',
+	strpos( $lookup_controller_full_source, "'code'    => 'ambiguous'" ) !== false && preg_match( '/ambiguous[\s\S]{0,300}?\n\t\t\t\t409/', $lookup_controller_full_source ) === 1
+);
+check(
+	'/deals/refresh trả 409 ambiguous (KHÔNG tự chọn deal để update khi mơ hồ)',
+	strpos( $refresh_controller_full_source, "'code'    => 'ambiguous'" ) !== false && preg_match( '/ambiguous[\s\S]{0,300}?\n\t\t\t\t409/', $refresh_controller_full_source ) === 1
+);
+check( '/deals/find request đọc marketplace/shop_code/item_code (identity chính xác) ngoài jan/asin/source_url cũ', strpos( $lookup_controller_full_source, "\$request->get_param( 'shop_code' )" ) !== false && strpos( $lookup_controller_full_source, "\$request->get_param( 'marketplace' )" ) !== false );
+check( '/deals/flags payload đọc marketplace/shop_code/item_code', strpos( $lookup_controller_full_source, "\$payload['shop_code']" ) !== false && strpos( $lookup_controller_full_source, "\$payload['marketplace']" ) !== false );
+check( '/deals/refresh payload đọc marketplace/shop_code/item_code', strpos( $refresh_controller_full_source, "\$payload['shop_code']" ) !== false && strpos( $refresh_controller_full_source, "\$payload['marketplace']" ) !== false );
+check( 'deal_to_array() (/deals/find, /deals/flags) trả lại shop_code/item_code/source_url cho Bot dùng ở lần gọi sau', strpos( $lookup_controller_full_source, "'shop_code'      => get_post_meta" ) !== false );
 
 echo "\n########################################\n";
 echo "TỔNG KẾT: $pass PASS, $fail FAIL\n";
